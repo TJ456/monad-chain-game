@@ -1,0 +1,86 @@
+
+/* Import existing CSS first */
+@import './components/ui/card-animation.css';
+
+/* Add any other global styles here */
+.glassmorphism {
+  background: rgba(17, 25, 40, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.125);
+}
+
+/* Shard animations */
+@keyframes shardGlow {
+  0% {
+    filter: brightness(1);
+    transform: rotate(0deg);
+  }
+  50% {
+    filter: brightness(1.3);
+    transform: rotate(180deg);
+  }
+  100% {
+    filter: brightness(1);
+    transform: rotate(360deg);
+  }
+}
+
+.shard-animation {
+  animation: shardGlow 2s ease-in-out;
+}
+
+/* Boost animations */
+@keyframes boostPulse {
+  0% {
+    box-shadow: 0 0 5px 2px rgba(99, 102, 241, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px 5px rgba(99, 102, 241, 0.7);
+  }
+  100% {
+    box-shadow: 0 0 5px 2px rgba(99, 102, 241, 0.3);
+  }
+}
+
+.boost-animation {
+  animation: boostPulse 1.5s infinite;
+}
+
+/* NFT redemption animation */
+@keyframes redeemShine {
+  0% {
+    background-position: -100% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.redeem-animation {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: redeemShine 1.5s infinite;
+}
+
+/* Difficulty tier badges */
+.badge-novice {
+  background: linear-gradient(45deg, rgba(52, 211, 153, 0.2), rgba(16, 185, 129, 0.2));
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.badge-veteran {
+  background: linear-gradient(45deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2));
+  border: 1px solid rgba(37, 99, 235, 0.4);
+}
+
+.badge-legend {
+  background: linear-gradient(45deg, rgba(236, 72, 153, 0.2), rgba(217, 70, 239, 0.2));
+  border: 1px solid rgba(217, 70, 239, 0.4);
+}

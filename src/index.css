@@ -1,0 +1,119 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 226 71% 4%;
+    --foreground: 210 20% 98%;
+
+    --card: 224 71% 8%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 224 71% 8%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 217 91% 60%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 27% 16%;
+    --muted-foreground: 217 10% 64%;
+
+    --accent: 191 91% 36%;
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 215 27% 16%;
+    --input: 215 27% 16%;
+    --ring: 263 70% 50%;
+
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Space Grotesk', sans-serif;
+    background-image: 
+      radial-gradient(circle at 10% 20%, rgba(109, 40, 217, 0.1) 0%, transparent 20%),
+      radial-gradient(circle at 90% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 25%),
+      radial-gradient(circle at 50% 80%, rgba(37, 99, 235, 0.1) 0%, transparent 30%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+  }
+}
+
+.card-glow {
+  box-shadow: 0 0 15px rgba(109, 40, 217, 0.5);
+}
+
+.card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0 20px rgba(109, 40, 217, 0.7);
+}
+
+.grid-pattern {
+  background-image: linear-gradient(rgba(37, 99, 235, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.techno-border {
+  position: relative;
+  border: 1px solid rgba(109, 40, 217, 0.3);
+  overflow: hidden;
+}
+
+.techno-border::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #6D28D9, transparent);
+  animation: techno-border-animation 3s linear infinite;
+}
+
+@keyframes techno-border-animation {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.card-rare {
+  background: linear-gradient(135deg, #06B6D4 0%, #2563EB 100%);
+}
+
+.card-epic {
+  background: linear-gradient(135deg, #6D28D9 0%, #EC4899 100%);
+}
+
+.card-legendary {
+  background: linear-gradient(135deg, #F59E0B 0%, #EC4899 100%);
+}
+
+.glassmorphism {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
