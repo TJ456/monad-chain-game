@@ -45,7 +45,7 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'Space Grotesk', sans-serif;
-    background-image: 
+    background-image:
       radial-gradient(circle at 10% 20%, rgba(109, 40, 217, 0.1) 0%, transparent 20%),
       radial-gradient(circle at 90% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 25%),
       radial-gradient(circle at 50% 80%, rgba(37, 99, 235, 0.1) 0%, transparent 30%);

@@ -41,7 +41,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
   };
 
   // Use our placeholder image generator
-  const imageUrl = card.image.startsWith('/') 
+  const imageUrl = card.image.startsWith('/')
     ? generateCardImage(card.name, card.type, card.rarity)
     : card.image;
 
@@ -50,14 +50,14 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
     if (!card.onChainMetadata?.battleHistory || card.onChainMetadata.battleHistory.length === 0) {
       return "No battles";
     }
-    
+
     const wins = card.onChainMetadata.battleHistory.filter(result => result === 1).length;
     const total = card.onChainMetadata.battleHistory.length;
     return `${Math.round((wins / total) * 100)}% (${wins}/${total})`;
   };
 
   return (
-    <CardComponent 
+    <CardComponent
       className={cn(
         "relative overflow-hidden w-56 h-80 transition-all duration-300 cursor-pointer card-hover",
         rarityStyles[card.rarity],
@@ -66,7 +66,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
       onClick={onClick}
     >
       <div className="absolute inset-0.5 bg-black rounded-sm z-0" />
-      
+
       <div className="relative z-10 h-full flex flex-col p-3">
         {/* Card Header */}
         <div className="flex justify-between items-center mb-2">
@@ -75,11 +75,11 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
             {typeIcons[card.type]}
           </div>
         </div>
-        
+
         {/* Card Image */}
         <div className="flex-1 relative overflow-hidden rounded-sm mb-2">
-          <div 
-            className="absolute inset-0 bg-cover bg-center" 
+          <div
+            className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${imageUrl})` }}
           />
           {/* Monad Blockchain Badge */}
@@ -87,27 +87,27 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
             MONAD
           </div>
         </div>
-        
+
         {/* Card Details */}
         {showDetails && (
           <>
             <div className="text-xs text-gray-300 mb-2 h-12 overflow-hidden">
               {card.description}
             </div>
-            
+
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-1">
                 <span className="text-xs text-blue-300">Mana:</span>
                 <span className="text-sm font-semibold text-blue-400">{card.mana}</span>
               </div>
-              
+
               {card.attack && (
                 <div className="flex items-center space-x-1">
                   <span className="text-xs text-red-300">ATK:</span>
                   <span className="text-sm font-semibold text-red-400">{card.attack}</span>
                 </div>
               )}
-              
+
               {card.defense && (
                 <div className="flex items-center space-x-1">
                   <span className="text-xs text-green-300">DEF:</span>
@@ -115,7 +115,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
                 </div>
               )}
             </div>
-            
+
             {/* Monad Blockchain Data */}
             <div className="mt-2 pt-2 border-t border-white/10 text-xs">
               <TooltipProvider>
