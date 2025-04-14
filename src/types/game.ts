@@ -23,6 +23,11 @@ export interface Card {
   defense?: number;
   mana: number;
   monadId: string; // For Monad blockchain integration
+  boosted?: boolean; // Added for boost mechanics
+  special?: number; // Added for special attack value
+  originalAttack?: number; // Store original values during boost
+  originalDefense?: number;
+  originalSpecial?: number;
   onChainMetadata?: {
     creator: string;
     creationBlock: number;
@@ -43,7 +48,12 @@ export interface Card {
   // Special effect for card gameplay
   specialEffect?: {
     description: string;
-    effectType: 'BUFF' | 'DEBUFF' | 'SHIELD' | 'DRAIN';
+    effectType: 'BUFF' | 'DEBUFF' | 'SHIELD' | 'DRAIN' | 'STUN' | 'LEECH' | 'COMBO' | 'COUNTER';
+    type?: 'damage' | 'heal' | 'mana' | 'stun' | 'leech';  // Added for compatibility with existing code
+    value?: number;            // Added for compatibility with existing code
+    duration?: number;         // For effects that last multiple turns
+    triggerCondition?: string; // For conditional effects
+    comboWith?: string[];     // For combo effects with other cards
   };
 }
 
@@ -238,6 +248,21 @@ export enum AIDifficultyTier {
   LEGEND = 'legend'
 }
 
+export interface AIBehavior {
+  name: string;
+  description: string;
+  thinkingTime: number;
+  cardSelectionStrategy: 'random' | 'value' | 'situational' | 'advanced' | 'predictive';
+  usesCombo: boolean;
+  recognizesPlayerPatterns: boolean;
+  defensiveThreshold: number; // Health percentage when AI prioritizes defense
+  aggressiveThreshold: number; // Health percentage when AI prioritizes attack
+  manaEfficiency: number; // 0-1 rating of how efficiently AI uses mana
+  plansTurnsAhead: number; // How many turns ahead the AI plans
+  specialMoveFrequency: number; // 0-1 probability of using special moves when available
+  adaptsToPreviousPlayerMoves: boolean;
+}
+
 export interface TierRequirement {
   tier: AIDifficultyTier;
   requiredWinRate: number;
@@ -251,3 +276,4 @@ export interface NFTRedemptionRule {
   maxDailyTrials: number;
   gasCost: number;
 }
+

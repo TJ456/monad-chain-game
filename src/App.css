@@ -15,15 +15,15 @@
 @keyframes shardGlow {
   0% {
     filter: brightness(1);
-    transform: rotate(0deg);
+    transform: rotate(0deg) scale(1);
   }
   50% {
-    filter: brightness(1.3);
-    transform: rotate(180deg);
+    filter: brightness(1.5);
+    transform: rotate(180deg) scale(1.2);
   }
   100% {
     filter: brightness(1);
-    transform: rotate(360deg);
+    transform: rotate(360deg) scale(1);
   }
 }
 
@@ -48,6 +48,32 @@
   animation: boostPulse 1.5s infinite;
 }
 
+/* Card boost animation */
+@keyframes cardBoostGlow {
+  0% {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 5px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    border-color: rgba(99, 102, 241, 0.8);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.8);
+  }
+  100% {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 5px rgba(99, 102, 241, 0.4);
+  }
+}
+
+.card-boosted {
+  animation: cardBoostGlow 1.5s infinite;
+  border: 2px solid rgba(99, 102, 241, 0.6);
+}
+
+.stat-boost {
+  color: #818cf8;
+  font-weight: bold;
+}
+
 /* NFT redemption animation */
 @keyframes redeemShine {
   0% {
@@ -60,10 +86,12 @@
 
 .redeem-animation {
   background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.2),
-    transparent
+    to right,
+    rgba(16, 185, 129, 0.1) 0%,
+    rgba(16, 185, 129, 0.3) 25%,
+    rgba(52, 211, 153, 0.5) 50%,
+    rgba(16, 185, 129, 0.3) 75%,
+    rgba(16, 185, 129, 0.1) 100%
   );
   background-size: 200% 100%;
   animation: redeemShine 1.5s infinite;
@@ -83,4 +111,57 @@
 .badge-legend {
   background: linear-gradient(45deg, rgba(236, 72, 153, 0.2), rgba(217, 70, 239, 0.2));
   border: 1px solid rgba(217, 70, 239, 0.4);
+}
+
+/* Card acquisition animation */
+@keyframes cardAcquired {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.card-acquired {
+  animation: cardAcquired 0.8s ease-out;
+}
+
+/* Victory animation */
+@keyframes victoryPulse {
+  0% {
+    box-shadow: 0 0 5px 2px rgba(16, 185, 129, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px 10px rgba(16, 185, 129, 0.5);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 5px 2px rgba(16, 185, 129, 0.3);
+    transform: scale(1);
+  }
+}
+
+.victory-animation {
+  animation: victoryPulse 2s infinite;
+}
+
+/* Tier-specific UI */
+.tier-novice {
+  border-color: rgba(52, 211, 153, 0.4) !important;
+}
+
+.tier-veteran {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.tier-legend {
+  border-color: rgba(217, 70, 239, 0.4) !important;
 }

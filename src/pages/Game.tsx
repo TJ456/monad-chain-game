@@ -1,24 +1,32 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navigation from '@/components/Navigation';
-import { Card } from "@/components/ui/card";
+import { Card as UICard } from "@/components/ui/card";
 import GameCard from '@/components/GameCard';
 import MonadStatus from '@/components/MonadStatus';
 import ShardManager from '@/components/ShardManager';
+import MonadBoostMechanic from '@/components/MonadBoostMechanic';
+import GameRoomSelector from '@/components/GameRoomSelector';
+import PlayerInventory from '@/components/PlayerInventory';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { toast } from "sonner";
 import { cards, currentPlayer, monadGameState } from '@/data/gameData';
 import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType } from '@/types/game';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Package, Shield, Sword, Zap } from 'lucide-react';
+import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
+
+const STORAGE_KEY_SHARDS = "monad_game_shards";
+const STORAGE_KEY_LAST_REDEMPTION = "monad_game_last_redemption";
+const STORAGE_KEY_DAILY_TRIALS = "monad_game_daily_trials";
+const STORAGE_KEY_PLAYER_CARDS = "monad_game_player_cards";
 
 const Game = () => {
   const { toast: uiToast } = useToast();
   const [playerDeck, setPlayerDeck] = useState<GameCardType[]>(currentPlayer.cards);
-  const [opponentCards, setOpponentCards] = useState<GameCardType[]>(
-    cards.filter(card => !currentPlayer.cards.includes(card)).slice(0, 3)
-  );
+  const [opponentCards, setOpponentCards] = useState<GameCardType[]>([]);
   const [selectedCard, setSelectedCard] = useState<GameCardType | null>(null);
-  const [gameStatus, setGameStatus] = useState<'waiting' | 'playing' | 'end'>('waiting');
+  const [gameStatus, setGameStatus] = useState<'room_select' | 'inventory' | 'waiting' | 'playing' | 'end'>('room_select');
   const [playerMana, setPlayerMana] = useState(10);
   const [opponentMana, setOpponentMana] = useState(10);
   const [playerHealth, setPlayerHealth] = useState(20);
@@ -31,14 +39,59 @@ const Game = () => {
   const [consecutiveSkips, setConsecutiveSkips] = useState(0);
   const [playerData, setPlayerData] = useState<PlayerType>({
     ...currentPlayer,
-    shards: 5,
-    dailyTrialsRemaining: 3
+    shards: 0,
+    dailyTrialsRemaining: 3,
+    lastTrialTime: 0
   });
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficultyTier>(AIDifficultyTier.NOVICE);
+  const [playerMonadBalance, setPlayerMonadBalance] = useState(1000);
+  const [boostActive, setBoostActive] = useState(false);
+  const [boostDetails, setBoostDetails] = useState<{effect: number, remainingTurns: number} | null>(null);
+  const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
+  const [isOpponentStunned, setIsOpponentStunned] = useState(false);
 
   useEffect(() => {
+    const savedShards = localStorage.getItem(STORAGE_KEY_SHARDS);
+    const parsedShards = savedShards ? parseInt(savedShards, 10) : 0;
+
+    const savedLastRedemption = localStorage.getItem(STORAGE_KEY_LAST_REDEMPTION);
+    const parsedLastRedemption = savedLastRedemption ? parseInt(savedLastRedemption, 10) : 0;
+
+    const savedDailyTrials = localStorage.getItem(STORAGE_KEY_DAILY_TRIALS);
+    const parsedDailyTrials = savedDailyTrials ? parseInt(savedDailyTrials, 10) : 3;
+
+    const savedPlayerCards = localStorage.getItem(STORAGE_KEY_PLAYER_CARDS);
+    const parsedPlayerCards = savedPlayerCards ? JSON.parse(savedPlayerCards) : currentPlayer.cards;
+
+    const isNewDay = new Date(parsedLastRedemption).getDate() !== new Date().getDate() ||
+                     new Date(parsedLastRedemption).getMonth() !== new Date().getMonth() ||
+                     new Date(parsedLastRedemption).getFullYear() !== new Date().getFullYear();
+
+    const dailyTrialsToSet = isNewDay ? 3 : parsedDailyTrials;
+
+    setPlayerData(prev => ({
+      ...prev,
+      shards: parsedShards,
+      lastTrialTime: parsedLastRedemption,
+      dailyTrialsRemaining: dailyTrialsToSet
+    }));
+
+    setAllPlayerCards(parsedPlayerCards);
+
     setIsOnChain(monadGameState.isOnChain && monadGameState.networkStatus === 'connected');
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_SHARDS, playerData.shards.toString());
+    if (playerData.lastTrialTime) {
+      localStorage.setItem(STORAGE_KEY_LAST_REDEMPTION, playerData.lastTrialTime.toString());
+    }
+    localStorage.setItem(STORAGE_KEY_DAILY_TRIALS, playerData.dailyTrialsRemaining.toString());
+  }, [playerData.shards, playerData.lastTrialTime, playerData.dailyTrialsRemaining]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY_PLAYER_CARDS, JSON.stringify(allPlayerCards));
+  }, [allPlayerCards]);
 
   const getPlayableCards = useCallback((cards: GameCardType[], mana: number) => {
     return cards.filter(card => card.mana <= mana);
@@ -46,7 +99,7 @@ const Game = () => {
 
   useEffect(() => {
     if (gameStatus !== 'playing') return;
-    
+
     if (currentTurn === 'player') {
       const playableCards = getPlayableCards(playerDeck, playerMana);
       if (playableCards.length === 0 && playerDeck.length > 0) {
@@ -57,26 +110,269 @@ const Game = () => {
     }
   }, [currentTurn, playerDeck, playerMana, gameStatus, getPlayableCards]);
 
+  const handleSelectDifficulty = (difficulty: AIDifficultyTier) => {
+    setAiDifficulty(difficulty);
+
+    let opponentCardPool: GameCardType[];
+
+    // Filter cards based on difficulty
+    switch (difficulty) {
+      case AIDifficultyTier.NOVICE:
+        // Novice only gets common and rare cards
+        opponentCardPool = cards.filter(card => card.rarity !== 'epic' && card.rarity !== 'legendary');
+        break;
+
+      case AIDifficultyTier.VETERAN:
+        // Veteran gets everything except legendary cards
+        opponentCardPool = cards.filter(card => card.rarity !== 'legendary');
+        break;
+
+      case AIDifficultyTier.LEGEND:
+        // Legend gets all cards
+        opponentCardPool = [...cards];
+        break;
+
+      default:
+        opponentCardPool = [...cards];
+    }
+
+    // Apply difficulty-specific enhancements to the cards
+    opponentCardPool = enhanceAICards(opponentCardPool, difficulty);
+
+    const randomCards: GameCardType[] = [];
+    while (randomCards.length < 3 && opponentCardPool.length > 0) {
+      const randomIndex = Math.floor(Math.random() * opponentCardPool.length);
+      randomCards.push(opponentCardPool[randomIndex]);
+      opponentCardPool.splice(randomIndex, 1);
+    }
+
+    setOpponentCards(randomCards);
+
+    // Instead of going to waiting screen, go to inventory for card selection
+    setGameStatus('inventory');
+
+    let difficultyName = '';
+    let description = '';
+
+    switch (difficulty) {
+      case AIDifficultyTier.NOVICE:
+        difficultyName = 'Novice';
+        description = 'Perfect for beginners. Learn the basics of Monad battles.';
+        break;
+      case AIDifficultyTier.VETERAN:
+        difficultyName = 'Veteran';
+        description = 'For experienced players. Face smarter opponents.';
+        break;
+      case AIDifficultyTier.LEGEND:
+        difficultyName = 'Legend';
+        description = 'For masters only. Face the ultimate challenge.';
+        break;
+    }
+
+    toast.success(`Entered ${difficultyName} Room`, {
+      description: `${description} Select your cards to begin.`
+    });
+  };
+
+  const openInventory = () => {
+    setGameStatus('inventory');
+  };
+
+  const closeInventory = () => {
+    // If we came from room selection, go back to room selection
+    if (opponentCards.length === 0) {
+      setGameStatus('room_select');
+    } else {
+      // Otherwise go to waiting screen
+      setGameStatus('waiting');
+    }
+  };
+
+  const handleCardSelection = (selectedCards: GameCardType[]) => {
+    setPlayerDeck(selectedCards);
+    setGameStatus('waiting');
+
+    toast.success("Deck Selected", {
+      description: `You've selected ${selectedCards.length} cards for battle.`
+    });
+  };
+
   const startGame = () => {
     resetGame();
     setGameStatus('playing');
     setCurrentTurn('player');
     setBattleLog(['Battle has begun on the MONAD blockchain! Your turn.']);
-    
+
+    let difficultyMessage = "";
+    switch (aiDifficulty) {
+      case AIDifficultyTier.NOVICE:
+        difficultyMessage = "Novice training battle begins. Perfect your strategy!";
+        break;
+      case AIDifficultyTier.VETERAN:
+        difficultyMessage = "Veteran AI activated. This opponent has advanced tactics!";
+        break;
+      case AIDifficultyTier.LEGEND:
+        difficultyMessage = "LEGENDARY AI ENGAGED! Prepare for the ultimate challenge!";
+        break;
+    }
+
+    setBattleLog(prev => [...prev, difficultyMessage]);
+
     uiToast({
       title: "Game Started",
       description: "The battle has begun! Play your first card.",
     });
-    
+
     toast.success("Connected to MONAD blockchain", {
       description: `Current block: ${monadGameState.currentBlockHeight}`,
       duration: 3000,
     });
   };
 
+  const handleBoostActivation = (amount: number, boostEffect: number, duration: number) => {
+    setPlayerDeck(prevCards =>
+      prevCards.map(card => ({
+        ...card,
+        originalAttack: card.attack,
+        originalDefense: card.defense,
+        originalSpecial: card.special,
+        attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
+        defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
+        special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
+        boosted: true,
+      }))
+    );
+    setBoostActive(true);
+    setBoostDetails({ effect: boostEffect, remainingTurns: duration });
+    setPlayerMonadBalance(prev => prev - amount);
+
+    setBattleLog(prev => [...prev, `MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
+
+    toast.success("Card Boost Activated!", {
+      description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+    });
+  };
+
+  function handleOpponentTurn() {
+    console.log("Executing AI turn...");
+    if (gameStatus !== 'playing') return;
+
+    // Check if opponent is stunned
+    if (isOpponentStunned) {
+      setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
+      setIsOpponentStunned(false); // Reset stun after one turn
+      endTurn('player'); // Player gets another turn
+      return;
+    }
+
+    const playableCards = opponentCards.filter(card => card.mana <= opponentMana);
+    console.log("AI playable cards:", playableCards);
+
+    if (playableCards.length > 0) {
+      let cardToPlay: GameCardType;
+      let aiThinkingDelay = aiStrategies[aiDifficulty].thinkingTime;
+
+      // Add AI thinking message to battle log
+      const thinkingMessage = getAIThinkingMessage(aiDifficulty);
+      setBattleLog(prev => [...prev, thinkingMessage]);
+
+      // Select card based on difficulty
+      switch (aiDifficulty) {
+        case AIDifficultyTier.NOVICE:
+          // Novice AI uses random selection
+          cardToPlay = selectCardNovice(playableCards, playerHealth, opponentHealth);
+          break;
+
+        case AIDifficultyTier.VETERAN:
+          // Veteran AI uses value-based selection
+          cardToPlay = selectCardVeteran(playableCards, playerHealth, opponentHealth, opponentMana);
+          break;
+
+        case AIDifficultyTier.LEGEND:
+          // Legend AI uses situational strategy
+          cardToPlay = selectCardLegend(
+            playableCards,
+            playerHealth,
+            opponentHealth,
+            opponentMana,
+            playerDeck,
+            selectedCard // Pass the player's last played card
+          );
+          break;
+
+        default:
+          cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
+      }
+
+      setTimeout(() => {
+        console.log("AI playing card:", cardToPlay);
+
+        setOpponentMana(prev => prev - cardToPlay.mana);
+        setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
+
+        let newPlayerHealth = playerHealth;
+        let newOpponentHealth = opponentHealth;
+        let logEntry = `Opponent played ${cardToPlay.name}.`;
+
+        if (cardToPlay.attack) {
+          newPlayerHealth = Math.max(0, playerHealth - cardToPlay.attack);
+          logEntry += ` Dealt ${cardToPlay.attack} damage.`;
+        }
+
+        if (cardToPlay.defense) {
+          newOpponentHealth = Math.min(30, opponentHealth + cardToPlay.defense);
+          logEntry += ` Gained ${cardToPlay.defense} health.`;
+        }
+
+        setPlayerHealth(newPlayerHealth);
+        setOpponentHealth(newOpponentHealth);
+        setBattleLog(prev => [...prev, logEntry]);
+
+        if (newPlayerHealth <= 0) {
+          endGame(false);
+          return;
+        }
+
+        endTurn('player');
+      }, aiThinkingDelay);
+    } else if (opponentCards.length === 0) {
+      handleFatigue('opponent');
+    } else {
+      setBattleLog(prev => [...prev, "Opponent passes (no playable cards)"]);
+      endTurn('player');
+    }
+  }
+
   const endTurn = useCallback((nextPlayer: 'player' | 'opponent') => {
+    if (boostActive && boostDetails) {
+      const newTurnsLeft = boostDetails.remainingTurns - 1;
+
+      if (newTurnsLeft <= 0) {
+        setPlayerDeck(prevCards =>
+          prevCards.map(card => ({
+            ...card,
+            attack: card.originalAttack,
+            defense: card.originalDefense,
+            special: card.originalSpecial,
+            boosted: false,
+          }))
+        );
+        setBoostActive(false);
+        setBoostDetails(null);
+        setBattleLog(prev => [...prev, "MONAD Boost expired - cards returned to normal"]);
+      } else {
+        setBoostDetails(prev => ({
+          ...prev!,
+          remainingTurns: newTurnsLeft
+        }));
+        if (newTurnsLeft === 1) {
+          setBattleLog(prev => [...prev, "MONAD Boost will expire next turn!"]);
+        }
+      }
+    }
+
     setCurrentTurn(nextPlayer);
-    
+
     if (nextPlayer === 'player') {
       setPlayerMana(prev => Math.min(10, prev + 1));
     } else {
@@ -84,15 +380,25 @@ const Game = () => {
     }
 
     setSelectedCard(null);
-  }, []);
+
+    if (nextPlayer === 'opponent') {
+      console.log("Triggering AI turn...");
+      setTimeout(handleOpponentTurn, 1000);
+    }
+  }, [boostActive, boostDetails]);
+
+  useEffect(() => {
+    if (gameStatus === 'playing' && currentTurn === 'opponent') {
+      handleOpponentTurn();
+    }
+  }, [currentTurn, gameStatus]);
 
   const handleNoPlayableCards = (player: 'player' | 'opponent', message: string) => {
     const newLogs = [...battleLog, message];
     setBattleLog(newLogs);
-    
+
     if (player === 'player') {
       endTurn('opponent');
-      handleOpponentTurn();
     } else {
       endTurn('player');
     }
@@ -101,100 +407,37 @@ const Game = () => {
   const handleFatigue = (target: 'player' | 'opponent') => {
     const damage = fatigueDamage;
     const message = `${target === 'player' ? 'You take' : 'Opponent takes'} ${damage} fatigue damage.`;
-    
+
     if (target === 'player') {
-      setPlayerHealth(prev => Math.max(0, prev - damage));
-      if (playerHealth - damage <= 0) {
-        endGame(false);
-        return;
-      }
+        const newHealth = Math.max(0, playerHealth - damage);
+        setPlayerHealth(newHealth);
+        if (newHealth <= 0) {
+            setBattleLog(prev => [...prev, message]);
+            endGame(false);
+            return;
+        }
     } else {
-      setOpponentHealth(prev => Math.max(0, prev - damage));
-      if (opponentHealth - damage <= 0) {
-        endGame(true);
-        return;
-      }
+        const newHealth = Math.max(0, opponentHealth - damage);
+        setOpponentHealth(newHealth);
+        if (newHealth <= 0) {
+            setBattleLog(prev => [...prev, message]);
+            endGame(true);
+            return;
+        }
     }
 
     setBattleLog(prev => [...prev, message]);
     setFatigueDamage(prev => prev + 1);
     setConsecutiveSkips(prev => prev + 1);
 
-    if (consecutiveSkips >= 1) {
-      endGame(null);
-      return;
+    // Only check for draw after 3 consecutive skips
+    if (consecutiveSkips >= 2) { // Changed from 3 to 2 since we increment before checking
+        endGame(null);
+        return;
     }
 
     endTurn(target === 'player' ? 'opponent' : 'player');
-    
-    if (target === 'player') {
-      setTimeout(handleOpponentTurn, 1000);
-    }
   };
-
-  const handleOpponentTurn = useCallback(() => {
-    if (gameStatus !== 'playing') return;
-
-    const playableCards = getPlayableCards(opponentCards, opponentMana);
-
-    if (playableCards.length > 0) {
-      const shouldDefend = opponentHealth < 10;
-      const preferredCards = shouldDefend 
-        ? playableCards.filter(c => c.defense > 0)
-        : playableCards.filter(c => c.attack > 0);
-
-      const cardToPlay = preferredCards.length > 0 
-        ? preferredCards[Math.floor(Math.random() * preferredCards.length)]
-        : playableCards[0];
-
-      setOpponentMana(prev => prev - cardToPlay.mana);
-      setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
-
-      let logEntry = `Opponent played ${cardToPlay.name}.`;
-      let newPlayerHealth = playerHealth;
-      let newOpponentHealth = opponentHealth;
-
-      if (cardToPlay.attack) {
-        newPlayerHealth = Math.max(0, playerHealth - cardToPlay.attack);
-        logEntry += ` Dealt ${cardToPlay.attack} damage.`;
-      }
-
-      if (cardToPlay.defense) {
-        newOpponentHealth = Math.min(30, opponentHealth + cardToPlay.defense);
-        logEntry += ` Gained ${cardToPlay.defense} health.`;
-      }
-
-      setPlayerHealth(newPlayerHealth);
-      setOpponentHealth(newOpponentHealth);
-      setBattleLog(prev => [...prev, logEntry]);
-
-      if (newPlayerHealth <= 0) {
-        endGame(false);
-        return;
-      }
-
-      endTurn('player');
-
-      const playerCanPlay = getPlayableCards(playerDeck, playerMana + 1).length > 0;
-      if (!playerCanPlay) {
-        if (playerDeck.length === 0) {
-          setTimeout(() => handleFatigue('player'), 1000);
-        } else {
-          setTimeout(() => {
-            setBattleLog(prev => [...prev, "No playable cards - turn passed."]);
-            endTurn('opponent');
-            setTimeout(handleOpponentTurn, 1000);
-          }, 1000);
-        }
-      }
-
-    } else if (opponentCards.length === 0) {
-      handleFatigue('opponent');
-    } else {
-      setBattleLog(prev => [...prev, "Opponent passes (no playable cards)"]);
-      endTurn('player');
-    }
-  }, [gameStatus, opponentCards, opponentMana, playerDeck, playerMana, opponentHealth, playerHealth, endTurn, getPlayableCards]);
 
   const playCard = (card: GameCardType) => {
     if (gameStatus !== 'playing' || currentTurn !== 'player') {
@@ -223,41 +466,136 @@ const Game = () => {
     let logEntry = `You played ${card.name}.`;
     let opponentNewHealth = opponentHealth;
     let playerNewHealth = playerHealth;
+    let extraMana = 0;
+    let applyStun = false;
 
+    // Apply card effects based on type
     if (card.attack) {
-      opponentNewHealth = Math.max(0, opponentHealth - card.attack);
-      logEntry += ` Dealt ${card.attack} damage.`;
+      // Calculate damage with potential critical hit for higher rarity cards
+      let damage = card.attack;
+      let criticalHit = false;
+
+      // Critical hit chance based on card rarity
+      if (card.rarity === 'epic' && Math.random() < 0.2) {
+        damage = Math.floor(damage * 1.5);
+        criticalHit = true;
+      } else if (card.rarity === 'legendary' && Math.random() < 0.3) {
+        damage = Math.floor(damage * 2);
+        criticalHit = true;
+      }
+
+      opponentNewHealth = Math.max(0, opponentHealth - damage);
+      logEntry += criticalHit
+        ? ` CRITICAL HIT! Dealt ${damage} damage.`
+        : ` Dealt ${damage} damage.`;
     }
 
     if (card.defense) {
-      playerNewHealth = Math.min(30, playerHealth + card.defense);
-      logEntry += ` Gained ${card.defense} health.`;
+      // Healing is more effective at lower health (comeback mechanic)
+      let healing = card.defense;
+      if (playerHealth < 10) {
+        healing = Math.floor(healing * 1.3); // 30% bonus when low on health
+        logEntry += ` Enhanced healing! Gained ${healing} health.`;
+      } else {
+        logEntry += ` Gained ${healing} health.`;
+      }
+      playerNewHealth = Math.min(30, playerHealth + healing);
     }
 
+    // Handle special effects with expanded functionality
     if (card.specialEffect) {
       logEntry += ` ${card.specialEffect.description}`;
-      // Implement special effects logic here
+
+      switch (card.specialEffect.type) {
+        case 'damage':
+          if (card.specialEffect.value) {
+            opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
+            logEntry += ` (${card.specialEffect.value} extra damage)`;
+          }
+          break;
+
+        case 'heal':
+          if (card.specialEffect.value) {
+            playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
+            logEntry += ` (${card.specialEffect.value} extra healing)`;
+          }
+          break;
+
+        case 'mana':
+          if (card.specialEffect.value) {
+            extraMana = card.specialEffect.value;
+            logEntry += ` (Gained ${extraMana} extra mana)`;
+          }
+          break;
+
+        case 'stun':
+          applyStun = true;
+          logEntry += ` (Opponent stunned for 1 turn)`;
+          break;
+
+        case 'leech':
+          if (card.specialEffect.value && card.attack) {
+            // Leech life equal to a percentage of damage dealt
+            const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
+            playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
+            logEntry += ` (Leeched ${leechAmount} health)`;
+          }
+          break;
+      }
+
+      // Handle effect types for more complex mechanics
+      switch (card.specialEffect.effectType) {
+        case 'COMBO':
+          // Combo cards get stronger if played after certain other cards
+          if (card.specialEffect.comboWith && pendingMoves.length > 0) {
+            const lastMove = pendingMoves[pendingMoves.length - 1];
+            if (card.specialEffect.comboWith.includes(lastMove.cardId)) {
+              // Bonus damage for combo
+              opponentNewHealth = Math.max(0, opponentNewHealth - 3);
+              logEntry += ` (COMBO BONUS: +3 damage)`;
+            }
+          }
+          break;
+
+        case 'COUNTER':
+          // Counter cards are more effective against certain types
+          // This would need to track the opponent's last card
+          break;
+      }
     }
 
     setOpponentHealth(opponentNewHealth);
     setPlayerHealth(playerNewHealth);
     setBattleLog(prev => [...prev, logEntry]);
     setPendingMoves(prev => [...prev, newMove]);
-    
+
+    // Reset consecutive skips counter when a card is played
+    setConsecutiveSkips(0);
+
+    // Apply extra mana if card granted it
+    if (extraMana > 0) {
+      setPlayerMana(prev => Math.min(10, prev + extraMana));
+    }
+
+    // Apply stun effect if card has it
+    if (applyStun) {
+      setIsOpponentStunned(true);
+    }
+
     toast.loading("Submitting move to MONAD blockchain...", {
       id: newMove.moveId,
       duration: 2000,
     });
 
     setTimeout(() => {
-      setPendingMoves(prev => 
-        prev.map(m => m.moveId === newMove.moveId ? { 
-          ...m, 
+      setPendingMoves(prev =>
+        prev.map(m => m.moveId === newMove.moveId ? {
+          ...m,
           verified: true,
-          onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}` 
+          onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
         } : m)
       );
-      
+
       toast.success("Move confirmed on-chain", {
         id: newMove.moveId,
         description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
@@ -268,8 +606,14 @@ const Game = () => {
         return;
       }
 
-      endTurn('opponent');
-      setTimeout(handleOpponentTurn, 1000);
+      // If opponent is stunned, they skip their turn
+      if (isOpponentStunned) {
+        setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
+        setIsOpponentStunned(false); // Reset stun after one turn
+        endTurn('player'); // Player gets another turn
+      } else {
+        endTurn('opponent');
+      }
     }, isOnChain ? 2000 : 500);
   };
 
@@ -287,81 +631,173 @@ const Game = () => {
   };
 
   const handleShardRedemption = () => {
-    setPlayerData(prev => ({
-      ...prev,
-      shards: prev.shards - 10,
-      dailyTrialsRemaining: prev.dailyTrialsRemaining - 1,
-      lastTrialTime: Date.now()
-    }));
+    if (playerData.shards < 10) {
+      toast.error("Not enough shards", {
+        description: `You need 10 shards to redeem an NFT card.`
+      });
+      return;
+    }
 
-    const newCardIndex = Math.floor(Math.random() * cards.length);
-    const newCard = cards[newCardIndex];
-    
-    setPlayerDeck(prev => [...prev, newCard]);
-    
-    setBattleLog(prev => [
-      ...prev, 
-      `You redeemed 10 shards and received a new ${newCard.rarity} card: ${newCard.name}!`
-    ]);
+    if (playerData.dailyTrialsRemaining <= 0) {
+      toast.error("Daily limit reached", {
+        description: `Maximum ${3} NFT trials per day.`
+      });
+      return;
+    }
+
+    const cooldownPeriod = 24 * 60 * 60 * 1000;
+    if (playerData.lastTrialTime && (Date.now() - playerData.lastTrialTime < cooldownPeriod)) {
+      const timeRemaining = playerData.lastTrialTime + cooldownPeriod - Date.now();
+      const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
+      const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
+
+      toast.error("Cooldown active", {
+        description: `Try again in ${hours}h ${minutes}m.`
+      });
+      return;
+    }
+
+    toast.loading("Processing NFT redemption on MONAD chain...");
+
+    setTimeout(() => {
+      setPlayerData(prev => ({
+        ...prev,
+        shards: prev.shards - 10,
+        dailyTrialsRemaining: prev.dailyTrialsRemaining - 1,
+        lastTrialTime: Date.now()
+      }));
+
+      const newCardIndex = Math.floor(Math.random() * cards.length);
+      const newCard = cards[newCardIndex];
+
+      setPlayerDeck(prev => [...prev, newCard]);
+      setAllPlayerCards(prev => [...prev, newCard]);
+
+      setBattleLog(prev => [
+        ...prev,
+        `You redeemed 10 shards and received a new ${newCard.rarity} card: ${newCard.name}!`
+      ]);
+
+      toast.success("NFT Redeemed!", {
+        description: `Your new ${newCard.rarity} card "${newCard.name}" has been added to your collection.`
+      });
+
+      setTimeout(() => {
+        toast.info("Redemption cooldown active", {
+          description: "You can redeem another NFT in 24 hours."
+        });
+      }, 1500);
+    }, 2000);
   };
 
   const endGame = (playerWon: boolean | null) => {
     setGameStatus('end');
-    
-    toast.loading("Recording game result on MONAD blockchain...", { 
+
+    toast.loading("Recording game result on MONAD blockchain...", {
       id: "game-result",
       duration: 3000,
     });
-    
+
     setTimeout(() => {
       toast.success("Game result recorded on-chain", {
         id: "game-result",
         description: `Block: ${monadGameState.currentBlockHeight! + 2}`,
       });
-      
-      let resultMessage = "";
+
       if (playerWon === true) {
-        const shardReward = getShardReward();
-        setPlayerData(prev => ({
-          ...prev,
-          shards: prev.shards + shardReward,
-          wins: prev.wins + 1
-        }));
-        
-        resultMessage = `Victory! You've won the battle. ${shardReward} Shards awarded and recorded on-chain.`;
+        // Victory - full shard reward
+        const reward = getShardReward();
+        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 50 :
+                      aiDifficulty === AIDifficultyTier.VETERAN ? 30 : 15;
+
+        const resultMessage = `Victory! You've won the battle. ${reward} Shards and ${xpGain} XP awarded and recorded on-chain.`;
+        setBattleLog(prev => [...prev, resultMessage]);
+
+        setPlayerData(prev => {
+          const updatedData = {
+            ...prev,
+            shards: prev.shards + reward,
+            wins: prev.wins + 1,
+            experience: prev.experience + xpGain,
+            // Level up if experience crosses threshold
+            level: prev.experience + xpGain >= prev.level * 100 ? prev.level + 1 : prev.level
+          };
+
+          localStorage.setItem(STORAGE_KEY_SHARDS, updatedData.shards.toString());
+          return updatedData;
+        });
+
         uiToast({
           title: "Victory!",
-          description: `You've won the battle and earned ${shardReward} Shards!`,
+          description: `You earned ${reward} shards and ${xpGain} XP.`,
         });
+
+        // Special message for legendary wins
+        if (aiDifficulty === AIDifficultyTier.LEGEND) {
+          setTimeout(() => {
+            toast.success("Legendary Victory!", {
+              description: "You've defeated one of the toughest opponents!"
+            });
+          }, 1500);
+        }
       } else if (playerWon === false) {
+        // Defeat - no shards but still gain some XP
+        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 15 :
+                      aiDifficulty === AIDifficultyTier.VETERAN ? 10 : 5;
+
+        const resultMessage = `Defeat! Better luck next time. Gained ${xpGain} XP for the effort.`;
+        setBattleLog(prev => [...prev, resultMessage]);
+
         setPlayerData(prev => ({
           ...prev,
-          losses: prev.losses + 1
+          losses: prev.losses + 1,
+          experience: prev.experience + xpGain
         }));
-        
-        resultMessage = "Defeat! Better luck next time. Battle result recorded on MONAD blockchain.";
+
         uiToast({
-          title: "Defeat!",
-          description: "You've lost the battle. Try again with a different strategy.",
+          title: "Defeat",
+          description: `Better luck next time. Gained ${xpGain} XP for the effort.`,
           variant: "destructive",
         });
       } else {
-        resultMessage = "Draw! Both players exhausted. The game ends in a tie.";
+        // Draw - half shard reward
+        const halfReward = Math.ceil(getShardReward() / 2);
+        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 25 :
+                      aiDifficulty === AIDifficultyTier.VETERAN ? 15 : 8;
+
+        const resultMessage = `Draw! Both players exhausted. Earned ${halfReward} shards and ${xpGain} XP.`;
+        setBattleLog(prev => [...prev, resultMessage]);
+
+        setPlayerData(prev => ({
+          ...prev,
+          shards: prev.shards + halfReward,
+          experience: prev.experience + xpGain
+        }));
+
         uiToast({
-          title: "Draw!",
-          description: "The game ended in a tie. No winner declared.",
+          title: "Draw",
+          description: `You earned ${halfReward} shards and ${xpGain} XP.`,
         });
       }
-      
-      setBattleLog(prev => [...prev, resultMessage]);
+
+      // Add special message for higher difficulty tiers
+      if (aiDifficulty !== AIDifficultyTier.NOVICE) {
+        setTimeout(() => {
+          toast.info(`${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)} difficulty bonus applied!`, {
+            description: "Higher difficulties provide better rewards."
+          });
+        }, 2000);
+      }
     }, 3000);
   };
 
   const resetGame = () => {
-    setPlayerDeck(currentPlayer.cards);
-    setOpponentCards(cards.filter(card => !currentPlayer.cards.includes(card)).slice(0, 3));
+    // Don't reset player deck - use the one they selected
+    // Only reset if they haven't selected any cards
+    if (playerDeck.length === 0) {
+      setPlayerDeck(allPlayerCards.slice(0, 3));
+    }
     setSelectedCard(null);
-    setGameStatus('waiting');
     setPlayerMana(10);
     setOpponentMana(10);
     setPlayerHealth(20);
@@ -371,223 +807,361 @@ const Game = () => {
     setCurrentTurn('player');
     setFatigueDamage(1);
     setConsecutiveSkips(0);
+    setBoostActive(false);
+    setBoostDetails(null);
+    setIsOpponentStunned(false);
   };
 
-  const calculateWinRate = () => {
-    const totalGames = playerData.wins + playerData.losses;
-    if (totalGames === 0) return 0;
-    return playerData.wins / totalGames;
+  const backToRoomSelection = () => {
+    setGameStatus('room_select');
+    setBattleLog([]);
   };
 
-  useEffect(() => {
-    const winRate = calculateWinRate();
-    
-    if (winRate >= 0.8) {
-      setAiDifficulty(AIDifficultyTier.LEGEND);
-    } else if (winRate >= 0.65) {
-      setAiDifficulty(AIDifficultyTier.VETERAN);
-    } else {
-      setAiDifficulty(AIDifficultyTier.NOVICE);
-    }
-  }, [playerData.wins, playerData.losses]);
+  const renderManaExplanation = () => (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger className="text-xs text-blue-400 underline cursor-help">
+          What is Mana?
+        </TooltipTrigger>
+        <TooltipContent className="w-80 p-3 bg-black/90 border border-blue-500/30">
+          <div>
+            <h4 className="font-bold text-blue-400 mb-1">MONAD Mana System</h4>
+            <p className="text-xs text-white/80">
+              Mana is the energy resource that powers your cards. Each card requires a specific amount
+              of mana to play. You start with 10 mana and gain +1 mana each turn (up to a maximum of 10).
+              Strategic mana management is key to victory!
+            </p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      <div className="container mx-auto pt-24 px-4 md:px-0 pb-16">
-        <h1 className="text-4xl font-bold text-white mb-8">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">
-            MONAD Chain Battle
-          </span>
-          {isOnChain && (
-            <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-400">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5 animate-pulse"></span>
-              On-Chain
-            </span>
-          )}
-        </h1>
-        
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <Card className="glassmorphism border-emerald-500/30 h-[600px] flex flex-col">
-              {gameStatus === 'waiting' ? (
-                <div className="flex flex-col items-center justify-center h-full">
-                  <div className="w-16 h-16 mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V9.236a1 1 0 00-1.447-.894l-4 2a1 1 0 00-.553.894V17zM15.211 6.276a1 1 0 000-1.788l-4.764-2.382a1 1 0 00-.894 0L4.789 4.488a1 1 0 000 1.788l4.764 2.382a1 1 0 00.894 0l4.764-2.382zM4.447 8.342A1 1 0 003 9.236V15a1 1 0 00.553.894l4 2A1 1 0 009 17v-5.764a1 1 0 00-.553-.894l-4-2z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-4">Ready to Battle on MONAD?</h2>
-                  <p className="text-gray-300 mb-8 text-center max-w-md">
-                    Challenge an opponent on the MONAD blockchain. All game moves are recorded as on-chain transactions, giving you true ownership of your battle history and rewards.
-                  </p>
-                  <Button 
-                    className="bg-gradient-to-r from-emerald-400 to-teal-500 text-white"
-                    onClick={startGame}
-                  >
-                    <span className="mr-2">Start On-Chain Battle</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </Button>
+  const renderGameContent = () => {
+    switch (gameStatus) {
+      case 'room_select':
+        return <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />;
+
+      case 'inventory':
+        return (
+          <PlayerInventory
+            playerCards={allPlayerCards}
+            onClose={closeInventory}
+            onSelectCards={handleCardSelection}
+            maxSelectable={3}
+            selectionMode={opponentCards.length > 0} // Only enable selection mode if we came from difficulty selection
+          />
+        );
+
+      case 'waiting':
+        return (
+          <UICard className="glassmorphism border-emerald-500/30 h-[600px] flex flex-col">
+            <div className="flex flex-col items-center justify-center h-full p-6">
+              <div className="w-16 h-16 mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M11 17a1 1 0 001.447.894l4-2A1 1 0 0017 15V9.236a1 1 0 00-1.447-.894l-4 2a1 1 0 00-.553.894V17zM15.211 6.276a1 1 0 000-1.788l-4.764-2.382a1 1 0 00-.894 0L4.789 4.488a1 1 0 000 1.788l4.764 2.382a1 1 0 00.894 0l4.764-2.382zM4.447 8.342A1 1 0 003 9.236V15a1 1 0 00.553.894l4 2A1 1 0 009 17v-5.764a1 1 0 00-.553-.894l-4-2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-4">Ready to Battle on MONAD?</h2>
+              <p className="text-gray-300 mb-8 text-center max-w-md">
+                Challenge an opponent on the MONAD blockchain. All game moves are recorded as on-chain transactions, giving you true ownership of your battle history and rewards.
+              </p>
+
+              <div className="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 w-full max-w-md">
+                <Button
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105"
+                  onClick={startGame}
+                >
+                  <Zap className="w-4 h-4 mr-2" />
+                  Start Battle
+                </Button>
+                <Button
+                  className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105"
+                  onClick={openInventory}
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  View Inventory
+                </Button>
+              </div>
+
+              <div className="mt-8 p-3 rounded-md bg-emerald-900/20 border border-emerald-500/30">
+                <h3 className="text-sm font-semibold text-emerald-300 mb-2">Game Setup:</h3>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-gray-300">Difficulty:</div>
+                  <div className="text-emerald-400 font-semibold capitalize">{aiDifficulty}</div>
+                  <div className="text-gray-300">Your Deck:</div>
+                  <div className="text-emerald-400 font-semibold">{playerDeck.length} Cards Ready</div>
+                  <div className="text-gray-300">Opponent:</div>
+                  <div className="text-emerald-400 font-semibold">{opponentCards.length} Cards Ready</div>
+                  <div className="text-gray-300">Shard Reward:</div>
+                  <div className="text-emerald-400 font-semibold">{getShardReward()} Shards</div>
                 </div>
-              ) : (
-                <div className="flex flex-col h-full p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <div className="text-lg font-bold text-white">Opponent</div>
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-red-400 font-bold">{opponentHealth} / 20</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-400">Mana</div>
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-blue-400 font-bold">{opponentMana} / 10</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-center space-x-4 mb-8">
-                    {opponentCards.map(card => (
-                      <div key={card.id} className="transform hover:-translate-y-2 transition-transform">
-                        <Card className="w-20 h-28 bg-gray-800 border-gray-700">
-                          <div className="h-full flex items-center justify-center text-gray-400">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
-                            </svg>
+              </div>
+
+              <div className="mt-6 flex justify-center">
+                <Button
+                  variant="ghost"
+                  className="text-xs text-gray-400 hover:text-white"
+                  onClick={backToRoomSelection}
+                >
+                  Return to Room Selection
+                </Button>
+              </div>
+            </div>
+          </UICard>
+        );
+
+      case 'playing':
+        return (
+          <UICard className="glassmorphism border-emerald-500/30">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">MONAD Battle</h2>
+                  <p className="text-gray-400 text-sm">
+                    Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
+                    <span className="mx-2">•</span>
+                    {renderManaExplanation()}
+                  </p>
+                </div>
+                <ShardManager
+                  player={playerData}
+                  onRedeemShards={handleShardRedemption}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2">
+                  <UICard className="bg-black/30 border-emerald-500/20">
+                    <div className="p-4">
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <div className="text-emerald-400 text-sm mb-1 flex items-center">
+                            <Shield className="w-4 h-4 mr-1" />
+                            Your Health
                           </div>
-                        </Card>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="flex-1 relative bg-black/30 rounded-lg mb-8 border border-emerald-500/30 flex items-center justify-center">
-                    {selectedCard ? (
-                      <div className="animate-float">
-                        <GameCard card={selectedCard} className="scale-110" />
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <div className="text-lg text-gray-400 mb-2">MONAD Blockchain Battle Arena</div>
-                        <div className="text-sm text-gray-500">Select a card to play - moves are recorded on-chain</div>
-                      </div>
-                    )}
-                    
-                    {pendingMoves.length > 0 && pendingMoves.some(move => !move.verified) && (
-                      <div className="absolute top-4 right-4">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="bg-emerald-900/50 px-3 py-1 rounded-full flex items-center">
-                                <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse mr-2"></div>
-                                <span className="text-xs text-emerald-400">Pending</span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent className="bg-black/80 border-emerald-500/50">
-                              <p className="text-xs text-emerald-400">Transaction being processed on MONAD blockchain</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex justify-center space-x-4 mb-4">
-                    {playerDeck.map(card => (
-                      <div key={card.id} className="transform hover:-translate-y-2 transition-transform">
-                        <div onClick={() => gameStatus === 'playing' && playCard(card)}>
-                          <GameCard card={card} className="w-20 h-28" showDetails={false} />
+                          <div className="h-4 bg-black/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500 ease-in-out"
+                              style={{ width: `${(playerHealth / 20) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-white">{playerHealth}</span>
+                            <span className="text-xs text-gray-500">20</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-red-400 text-sm mb-1 text-right flex items-center justify-end">
+                            Opponent Health
+                            <Shield className="w-4 h-4 ml-1" />
+                          </div>
+                          <div className="h-4 bg-black/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-red-500 to-pink-500 rounded-full transition-all duration-500 ease-in-out"
+                              style={{ width: `${(opponentHealth / 20) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-white">{opponentHealth}</span>
+                            <span className="text-xs text-gray-500">20</span>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-lg font-bold text-white flex items-center">
-                        You
-                        <span className="ml-2 text-xs bg-emerald-900/50 text-emerald-400 px-2 py-0.5 rounded-full font-mono">
-                          {currentPlayer.monadAddress.substring(0, 8)}...
-                        </span>
+
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                          <div className="text-blue-400 text-sm mb-1 flex items-center">
+                            <Zap className="w-4 h-4 mr-1" />
+                            Your Mana
+                          </div>
+                          <div className="h-3 bg-black/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500 ease-in-out"
+                              style={{ width: `${(playerMana / 10) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-white mt-1">{playerMana}/10</div>
+                        </div>
+                        <div>
+                          <div className="text-purple-400 text-sm mb-1 text-right flex items-center justify-end">
+                            Opponent Mana
+                            <Zap className="w-4 h-4 ml-1" />
+                          </div>
+                          <div className="h-3 bg-black/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all duration-500 ease-in-out"
+                              style={{ width: `${(opponentMana / 10) * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-white mt-1 text-right">{opponentMana}/10</div>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-red-400 font-bold">{playerHealth} / 20</div>
+
+                      <div className="mb-6">
+                        <h3 className="text-white text-sm flex items-center mb-2">
+                          Battle Log
+                          <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${currentTurn === 'player' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {currentTurn === 'player' ? 'Your Turn' : 'AI Turn'}
+                          </span>
+                        </h3>
+                        <div className="bg-black/40 rounded-md p-2 h-40 overflow-y-auto border border-white/10">
+                          {battleLog.map((log, index) => (
+                            <p key={index} className={`text-xs mb-1 ${index === battleLog.length - 1 ? 'text-emerald-400' : 'text-gray-300'}`}>
+                              {log}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-white text-sm mb-2 flex items-center">
+                          <Sword className="w-4 h-4 mr-1" />
+                          Your Cards
+                        </h3>
+                        <div className="grid grid-cols-3 gap-2">
+                          {playerDeck.map(card => (
+                            <div
+                              key={card.id}
+                              onClick={() => playCard(card)}
+                              className={`cursor-pointer transform hover:-translate-y-1 transition-transform ${
+                                currentTurn !== 'player' || playerMana < card.mana ? 'opacity-50' : 'hover:scale-105'
+                              }`}
+                            >
+                              <GameCard card={card} showDetails={false} />
+                            </div>
+                          ))}
+                          {playerDeck.length === 0 && (
+                            <div className="col-span-3 text-center p-4 border border-dashed border-gray-700 rounded-md">
+                              <p className="text-gray-400 text-sm">No cards in hand</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-400">Mana</div>
-                      <div className="flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-blue-400 font-bold">{playerMana} / 10</div>
+                  </UICard>
+                </div>
+
+                <div>
+                  <MonadBoostMechanic
+                    playerMonadBalance={playerMonadBalance}
+                    onActivateBoost={handleBoostActivation}
+                    boostActive={boostActive}
+                    boostDetails={boostDetails}
+                  />
+
+                  <UICard className="bg-black/30 border-emerald-500/20 mt-4">
+                    <div className="p-4">
+                      <h3 className="text-white text-sm mb-2">Game Stats</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">Turn:</span>
+                          <span className={`text-xs ${currentTurn === 'player' ? 'text-emerald-400' : 'text-red-400'} capitalize`}>
+                            {currentTurn}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">Cards Left:</span>
+                          <span className="text-xs text-white">You: {playerDeck.length} | Opponent: {opponentCards.length}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">Fatigue:</span>
+                          <span className="text-xs text-amber-400">{fatigueDamage} Damage</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">Shards:</span>
+                          <span className="text-xs text-emerald-400">{playerData.shards}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-400">AI Difficulty:</span>
+                          <span className="text-xs text-emerald-400 capitalize">{aiDifficulty}</span>
+                        </div>
                       </div>
                     </div>
+                  </UICard>
+
+                  {aiDifficulty === AIDifficultyTier.LEGEND && (
+                    <div className="mt-4 p-3 rounded-md bg-red-900/20 border border-red-500/30 animate-pulse">
+                      <p className="text-xs text-red-400 font-semibold">
+                        ⚠️ LEGEND MODE ACTIVE: AI has enhanced abilities and advanced strategy algorithms.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </UICard>
+        );
+
+      case 'end':
+        return (
+          <UICard className="glassmorphism border-emerald-500/30 h-[600px] flex flex-col">
+            <div className="flex flex-col items-center justify-center h-full p-6">
+              <div className="w-16 h-16 mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-4">Battle Complete</h2>
+              <div className="bg-black/30 rounded-md p-4 mb-6 w-full max-w-md">
+                <div className="text-center mb-4">
+                  <div className="text-sm text-gray-400 mb-1">Final Result</div>
+                  <div className={`text-lg font-bold ${playerHealth <= 0 ? 'text-red-400' : opponentHealth <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {playerHealth <= 0 ? 'Defeat' : opponentHealth <= 0 ? 'Victory!' : 'Draw'}
                   </div>
                 </div>
-              )}
-            </Card>
-          </div>
-          
-          <div className="space-y-8">
-            <MonadStatus />
-            
-            {gameStatus === 'end' && (
-              <ShardManager 
-                player={playerData} 
-                onRedeemShards={handleShardRedemption} 
-              />
-            )}
-            
-            <Card className="glassmorphism border-emerald-500/30 h-[320px] flex flex-col">
-              <div className="p-4 border-b border-white/10">
-                <h2 className="text-lg font-bold text-white">Battle Log</h2>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4">
-                {battleLog.length > 0 ? (
-                  <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1 flex items-center">
+                      <Shield className="w-4 h-4 mr-1" />
+                      Your Health
+                    </div>
+                    <div className="text-lg font-bold">{playerHealth}/20</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-400 mb-1 flex items-center justify-end">
+                      Opponent Health
+                      <Shield className="w-4 h-4 ml-1" />
+                    </div>
+                    <div className="text-lg font-bold text-right">{opponentHealth}/20</div>
+                  </div>
+                </div>
+                <div className="text-center mb-4">
+                  <div className="text-sm text-gray-400 mb-1">Total Shards</div>
+                  <div className="text-3xl font-bold text-amber-400">{playerData.shards}</div>
+                  <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
+                </div>
+                <div className="bg-black/30 rounded p-3">
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>
+                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">
                     {battleLog.map((log, index) => (
-                      <div 
-                        key={index} 
-                        className="text-sm text-gray-300 p-2 rounded bg-black/20 border border-white/5"
-                      >
-                        {log}
-                      </div>
+                      <p key={index} className="mb-1">{log}</p>
                     ))}
                   </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                    Battle events will appear here
-                  </div>
-                )}
+                </div>
               </div>
-              
-              <div className="p-4 border-t border-white/10">
-                {gameStatus === 'end' && (
-                  <Button 
-                    className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 text-white"
-                    onClick={resetGame}
-                  >
-                    Play Again
-                  </Button>
-                )}
+              <div className="flex space-x-4 w-full max-w-md">
+                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">
+                  <Zap className="w-4 h-4 mr-2" />
+                  New Battle
+                </Button>
+                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">
+                  <Package className="w-4 h-4 mr-2" />
+                  View Inventory
+                </Button>
               </div>
-            </Card>
-          </div>
-        </div>
-      </div>
+            </div>
+          </UICard>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      {renderGameContent()}
     </div>
   );
 };
