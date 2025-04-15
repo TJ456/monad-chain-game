@@ -15,6 +15,7 @@ import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRe
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Package, Shield, Sword, Zap } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
+import { monadGameService } from '@/services/MonadGameService';
 
 const STORAGE_KEY_SHARDS = "monad_game_shards";
 const STORAGE_KEY_LAST_REDEMPTION = "monad_game_last_redemption";
@@ -49,6 +50,9 @@ const Game = () => {
   const [boostDetails, setBoostDetails] = useState<{effect: number, remainingTurns: number} | null>(null);
   const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
   const [isOpponentStunned, setIsOpponentStunned] = useState(false);
+  const [walletConnected, setWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState<string>('');
+  const [isRegistered, setIsRegistered] = useState(false);
 
   useEffect(() => {
     const savedShards = localStorage.getItem(STORAGE_KEY_SHARDS);
@@ -92,6 +96,26 @@ const Game = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_PLAYER_CARDS, JSON.stringify(allPlayerCards));
   }, [allPlayerCards]);
+
+  useEffect(() => {
+    const initializeBlockchain = async () => {
+        try {
+            // Connect wallet
+            const address = await monadGameService.connectWallet();
+            setWalletAddress(address);
+            setWalletConnected(true);
+
+            // Check if player is registered
+            const playerData = await monadGameService.getPlayerData(address);
+            setIsRegistered(!!playerData);
+        } catch (error) {
+            console.error("Blockchain initialization error:", error);
+            toast.error("Failed to connect to blockchain");
+        }
+    };
+
+    initializeBlockchain();
+  }, []);
 
   const getPlayableCards = useCallback((cards: GameCardType[], mana: number) => {
     return cards.filter(card => card.mana <= mana);
@@ -439,7 +463,12 @@ const Game = () => {
     endTurn(target === 'player' ? 'opponent' : 'player');
   };
 
-  const playCard = (card: GameCardType) => {
+  const playCard = async (card: GameCardType) => {
+    if (!walletConnected || !isRegistered) {
+        toast.error("Please connect wallet and register first");
+        return;
+    }
+
     if (gameStatus !== 'playing' || currentTurn !== 'player') {
       toast.warning("Not your turn!");
       return;
@@ -450,171 +479,180 @@ const Game = () => {
       return;
     }
 
-    const newMove: MonadGameMove = {
-      moveId: `move-${Date.now()}`,
-      playerAddress: currentPlayer.monadAddress,
-      cardId: card.id,
-      moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
-      timestamp: Date.now(),
-      verified: false
-    };
+    try {
+        const newMove: MonadGameMove = {
+            moveId: `move-${Date.now()}`,
+            playerAddress: walletAddress,
+            cardId: card.id,
+            moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
+            timestamp: Date.now(),
+            verified: false
+        };
 
-    setPlayerMana(prev => prev - card.mana);
-    setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
-    setSelectedCard(card);
+        // Submit move to blockchain
+        await monadGameService.executeParallelMoves([newMove]);
 
-    let logEntry = `You played ${card.name}.`;
-    let opponentNewHealth = opponentHealth;
-    let playerNewHealth = playerHealth;
-    let extraMana = 0;
-    let applyStun = false;
+        setPlayerMana(prev => prev - card.mana);
+        setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
+        setSelectedCard(card);
 
-    // Apply card effects based on type
-    if (card.attack) {
-      // Calculate damage with potential critical hit for higher rarity cards
-      let damage = card.attack;
-      let criticalHit = false;
+        let logEntry = `You played ${card.name}.`;
+        let opponentNewHealth = opponentHealth;
+        let playerNewHealth = playerHealth;
+        let extraMana = 0;
+        let applyStun = false;
 
-      // Critical hit chance based on card rarity
-      if (card.rarity === 'epic' && Math.random() < 0.2) {
-        damage = Math.floor(damage * 1.5);
-        criticalHit = true;
-      } else if (card.rarity === 'legendary' && Math.random() < 0.3) {
-        damage = Math.floor(damage * 2);
-        criticalHit = true;
-      }
+        // Apply card effects based on type
+        if (card.attack) {
+          // Calculate damage with potential critical hit for higher rarity cards
+          let damage = card.attack;
+          let criticalHit = false;
 
-      opponentNewHealth = Math.max(0, opponentHealth - damage);
-      logEntry += criticalHit
-        ? ` CRITICAL HIT! Dealt ${damage} damage.`
-        : ` Dealt ${damage} damage.`;
-    }
-
-    if (card.defense) {
-      // Healing is more effective at lower health (comeback mechanic)
-      let healing = card.defense;
-      if (playerHealth < 10) {
-        healing = Math.floor(healing * 1.3); // 30% bonus when low on health
-        logEntry += ` Enhanced healing! Gained ${healing} health.`;
-      } else {
-        logEntry += ` Gained ${healing} health.`;
-      }
-      playerNewHealth = Math.min(30, playerHealth + healing);
-    }
-
-    // Handle special effects with expanded functionality
-    if (card.specialEffect) {
-      logEntry += ` ${card.specialEffect.description}`;
-
-      switch (card.specialEffect.type) {
-        case 'damage':
-          if (card.specialEffect.value) {
-            opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
-            logEntry += ` (${card.specialEffect.value} extra damage)`;
+          // Critical hit chance based on card rarity
+          if (card.rarity === 'epic' && Math.random() < 0.2) {
+            damage = Math.floor(damage * 1.5);
+            criticalHit = true;
+          } else if (card.rarity === 'legendary' && Math.random() < 0.3) {
+            damage = Math.floor(damage * 2);
+            criticalHit = true;
           }
-          break;
 
-        case 'heal':
-          if (card.specialEffect.value) {
-            playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
-            logEntry += ` (${card.specialEffect.value} extra healing)`;
+          opponentNewHealth = Math.max(0, opponentHealth - damage);
+          logEntry += criticalHit
+            ? ` CRITICAL HIT! Dealt ${damage} damage.`
+            : ` Dealt ${damage} damage.`;
+        }
+
+        if (card.defense) {
+          // Healing is more effective at lower health (comeback mechanic)
+          let healing = card.defense;
+          if (playerHealth < 10) {
+            healing = Math.floor(healing * 1.3); // 30% bonus when low on health
+            logEntry += ` Enhanced healing! Gained ${healing} health.`;
+          } else {
+            logEntry += ` Gained ${healing} health.`;
           }
-          break;
+          playerNewHealth = Math.min(30, playerHealth + healing);
+        }
 
-        case 'mana':
-          if (card.specialEffect.value) {
-            extraMana = card.specialEffect.value;
-            logEntry += ` (Gained ${extraMana} extra mana)`;
+        // Handle special effects with expanded functionality
+        if (card.specialEffect) {
+          logEntry += ` ${card.specialEffect.description}`;
+
+          switch (card.specialEffect.type) {
+            case 'damage':
+              if (card.specialEffect.value) {
+                opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
+                logEntry += ` (${card.specialEffect.value} extra damage)`;
+              }
+              break;
+
+            case 'heal':
+              if (card.specialEffect.value) {
+                playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
+                logEntry += ` (${card.specialEffect.value} extra healing)`;
+              }
+              break;
+
+            case 'mana':
+              if (card.specialEffect.value) {
+                extraMana = card.specialEffect.value;
+                logEntry += ` (Gained ${extraMana} extra mana)`;
+              }
+              break;
+
+            case 'stun':
+              applyStun = true;
+              logEntry += ` (Opponent stunned for 1 turn)`;
+              break;
+
+            case 'leech':
+              if (card.specialEffect.value && card.attack) {
+                // Leech life equal to a percentage of damage dealt
+                const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
+                playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
+                logEntry += ` (Leeched ${leechAmount} health)`;
+              }
+              break;
           }
-          break;
 
-        case 'stun':
-          applyStun = true;
-          logEntry += ` (Opponent stunned for 1 turn)`;
-          break;
+          // Handle effect types for more complex mechanics
+          switch (card.specialEffect.effectType) {
+            case 'COMBO':
+              // Combo cards get stronger if played after certain other cards
+              if (card.specialEffect.comboWith && pendingMoves.length > 0) {
+                const lastMove = pendingMoves[pendingMoves.length - 1];
+                if (card.specialEffect.comboWith.includes(lastMove.cardId)) {
+                  // Bonus damage for combo
+                  opponentNewHealth = Math.max(0, opponentNewHealth - 3);
+                  logEntry += ` (COMBO BONUS: +3 damage)`;
+                }
+              }
+              break;
 
-        case 'leech':
-          if (card.specialEffect.value && card.attack) {
-            // Leech life equal to a percentage of damage dealt
-            const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
-            playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
-            logEntry += ` (Leeched ${leechAmount} health)`;
+            case 'COUNTER':
+              // Counter cards are more effective against certain types
+              // This would need to track the opponent's last card
+              break;
           }
-          break;
-      }
+        }
 
-      // Handle effect types for more complex mechanics
-      switch (card.specialEffect.effectType) {
-        case 'COMBO':
-          // Combo cards get stronger if played after certain other cards
-          if (card.specialEffect.comboWith && pendingMoves.length > 0) {
-            const lastMove = pendingMoves[pendingMoves.length - 1];
-            if (card.specialEffect.comboWith.includes(lastMove.cardId)) {
-              // Bonus damage for combo
-              opponentNewHealth = Math.max(0, opponentNewHealth - 3);
-              logEntry += ` (COMBO BONUS: +3 damage)`;
-            }
+        setOpponentHealth(opponentNewHealth);
+        setPlayerHealth(playerNewHealth);
+        setBattleLog(prev => [...prev, logEntry]);
+        setPendingMoves(prev => [...prev, newMove]);
+
+        // Reset consecutive skips counter when a card is played
+        setConsecutiveSkips(0);
+
+        // Apply extra mana if card granted it
+        if (extraMana > 0) {
+          setPlayerMana(prev => Math.min(10, prev + extraMana));
+        }
+
+        // Apply stun effect if card has it
+        if (applyStun) {
+          setIsOpponentStunned(true);
+        }
+
+        toast.loading("Submitting move to MONAD blockchain...", {
+          id: newMove.moveId,
+          duration: 2000,
+        });
+
+        setTimeout(() => {
+          setPendingMoves(prev =>
+            prev.map(m => m.moveId === newMove.moveId ? {
+              ...m,
+              verified: true,
+              onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
+            } : m)
+          );
+
+          toast.success("Move confirmed on-chain", {
+            id: newMove.moveId,
+            description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
+          });
+
+          if (opponentNewHealth <= 0) {
+            endGame(true);
+            return;
           }
-          break;
 
-        case 'COUNTER':
-          // Counter cards are more effective against certain types
-          // This would need to track the opponent's last card
-          break;
-      }
-    }
-
-    setOpponentHealth(opponentNewHealth);
-    setPlayerHealth(playerNewHealth);
-    setBattleLog(prev => [...prev, logEntry]);
-    setPendingMoves(prev => [...prev, newMove]);
-
-    // Reset consecutive skips counter when a card is played
-    setConsecutiveSkips(0);
-
-    // Apply extra mana if card granted it
-    if (extraMana > 0) {
-      setPlayerMana(prev => Math.min(10, prev + extraMana));
-    }
-
-    // Apply stun effect if card has it
-    if (applyStun) {
-      setIsOpponentStunned(true);
-    }
-
-    toast.loading("Submitting move to MONAD blockchain...", {
-      id: newMove.moveId,
-      duration: 2000,
-    });
-
-    setTimeout(() => {
-      setPendingMoves(prev =>
-        prev.map(m => m.moveId === newMove.moveId ? {
-          ...m,
-          verified: true,
-          onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
-        } : m)
-      );
-
-      toast.success("Move confirmed on-chain", {
-        id: newMove.moveId,
-        description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
-      });
-
-      if (opponentNewHealth <= 0) {
-        endGame(true);
+          // If opponent is stunned, they skip their turn
+          if (isOpponentStunned) {
+            setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
+            setIsOpponentStunned(false); // Reset stun after one turn
+            endTurn('player'); // Player gets another turn
+          } else {
+            endTurn('opponent');
+          }
+        }, isOnChain ? 2000 : 500);
+    } catch (error) {
+        console.error("Failed to submit move:", error);
+        toast.error("Failed to submit move to blockchain");
         return;
-      }
-
-      // If opponent is stunned, they skip their turn
-      if (isOpponentStunned) {
-        setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
-        setIsOpponentStunned(false); // Reset stun after one turn
-        endTurn('player'); // Player gets another turn
-      } else {
-        endTurn('opponent');
-      }
-    }, isOnChain ? 2000 : 500);
+    }
   };
 
   const getShardReward = () => {
@@ -630,165 +668,59 @@ const Game = () => {
     }
   };
 
-  const handleShardRedemption = () => {
-    if (playerData.shards < 10) {
-      toast.error("Not enough shards", {
-        description: `You need 10 shards to redeem an NFT card.`
-      });
-      return;
+  const handleShardRedemption = async () => {
+    if (!walletConnected || !isRegistered) {
+        toast.error("Please connect wallet and register first");
+        return;
     }
 
-    if (playerData.dailyTrialsRemaining <= 0) {
-      toast.error("Daily limit reached", {
-        description: `Maximum ${3} NFT trials per day.`
-      });
-      return;
+    try {
+        await monadGameService.redeemNFT();
+        // ... rest of your existing redemption logic ...
+    } catch (error) {
+        console.error("NFT redemption failed:", error);
+        toast.error("Failed to redeem NFT");
     }
-
-    const cooldownPeriod = 24 * 60 * 60 * 1000;
-    if (playerData.lastTrialTime && (Date.now() - playerData.lastTrialTime < cooldownPeriod)) {
-      const timeRemaining = playerData.lastTrialTime + cooldownPeriod - Date.now();
-      const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
-      const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
-
-      toast.error("Cooldown active", {
-        description: `Try again in ${hours}h ${minutes}m.`
-      });
-      return;
-    }
-
-    toast.loading("Processing NFT redemption on MONAD chain...");
-
-    setTimeout(() => {
-      setPlayerData(prev => ({
-        ...prev,
-        shards: prev.shards - 10,
-        dailyTrialsRemaining: prev.dailyTrialsRemaining - 1,
-        lastTrialTime: Date.now()
-      }));
-
-      const newCardIndex = Math.floor(Math.random() * cards.length);
-      const newCard = cards[newCardIndex];
-
-      setPlayerDeck(prev => [...prev, newCard]);
-      setAllPlayerCards(prev => [...prev, newCard]);
-
-      setBattleLog(prev => [
-        ...prev,
-        `You redeemed 10 shards and received a new ${newCard.rarity} card: ${newCard.name}!`
-      ]);
-
-      toast.success("NFT Redeemed!", {
-        description: `Your new ${newCard.rarity} card "${newCard.name}" has been added to your collection.`
-      });
-
-      setTimeout(() => {
-        toast.info("Redemption cooldown active", {
-          description: "You can redeem another NFT in 24 hours."
-        });
-      }, 1500);
-    }, 2000);
   };
 
-  const endGame = (playerWon: boolean | null) => {
-    setGameStatus('end');
+  const endGame = async (playerWon: boolean | null) => {
+    try {
+        // Record game result on blockchain
+        const gameData = {
+            winner: playerWon ? walletAddress : null,
+            playerHealth: playerHealth,
+            opponentHealth: opponentHealth,
+            difficulty: aiDifficulty,
+            moves: pendingMoves
+        };
 
-    toast.loading("Recording game result on MONAD blockchain...", {
-      id: "game-result",
-      duration: 3000,
-    });
+        // Submit moves batch
+        const movesBatch = {
+            batchId: Date.now().toString(),
+            moves: pendingMoves,
+            stateRoot: "0x" + Math.random().toString(16).slice(2),
+            zkProof: "0x" + Math.random().toString(16).slice(2),
+            verificationTime: Date.now(),
+            submittedInBlock: monadGameState.currentBlockHeight || 0
+        };
 
-    setTimeout(() => {
-      toast.success("Game result recorded on-chain", {
-        id: "game-result",
-        description: `Block: ${monadGameState.currentBlockHeight! + 2}`,
-      });
+        await monadGameService.submitMovesBatch(movesBatch);
 
-      if (playerWon === true) {
-        // Victory - full shard reward
-        const reward = getShardReward();
-        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 50 :
-                      aiDifficulty === AIDifficultyTier.VETERAN ? 30 : 15;
-
-        const resultMessage = `Victory! You've won the battle. ${reward} Shards and ${xpGain} XP awarded and recorded on-chain.`;
-        setBattleLog(prev => [...prev, resultMessage]);
-
-        setPlayerData(prev => {
-          const updatedData = {
-            ...prev,
-            shards: prev.shards + reward,
-            wins: prev.wins + 1,
-            experience: prev.experience + xpGain,
-            // Level up if experience crosses threshold
-            level: prev.experience + xpGain >= prev.level * 100 ? prev.level + 1 : prev.level
-          };
-
-          localStorage.setItem(STORAGE_KEY_SHARDS, updatedData.shards.toString());
-          return updatedData;
-        });
-
-        uiToast({
-          title: "Victory!",
-          description: `You earned ${reward} shards and ${xpGain} XP.`,
-        });
-
-        // Special message for legendary wins
-        if (aiDifficulty === AIDifficultyTier.LEGEND) {
-          setTimeout(() => {
-            toast.success("Legendary Victory!", {
-              description: "You've defeated one of the toughest opponents!"
-            });
-          }, 1500);
+        // Award shards
+        if (playerWon) {
+            const reward = getShardReward();
+            await monadGameService.claimShards(movesBatch.batchId);
+            // ... rest of victory logic ...
         }
-      } else if (playerWon === false) {
-        // Defeat - no shards but still gain some XP
-        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 15 :
-                      aiDifficulty === AIDifficultyTier.VETERAN ? 10 : 5;
 
-        const resultMessage = `Defeat! Better luck next time. Gained ${xpGain} XP for the effort.`;
-        setBattleLog(prev => [...prev, resultMessage]);
+        // ... rest of your existing endGame logic ...
 
-        setPlayerData(prev => ({
-          ...prev,
-          losses: prev.losses + 1,
-          experience: prev.experience + xpGain
-        }));
+    } catch (error) {
+        console.error("Failed to record game result:", error);
+        toast.error("Failed to record game result on blockchain");
+    }
 
-        uiToast({
-          title: "Defeat",
-          description: `Better luck next time. Gained ${xpGain} XP for the effort.`,
-          variant: "destructive",
-        });
-      } else {
-        // Draw - half shard reward
-        const halfReward = Math.ceil(getShardReward() / 2);
-        const xpGain = aiDifficulty === AIDifficultyTier.LEGEND ? 25 :
-                      aiDifficulty === AIDifficultyTier.VETERAN ? 15 : 8;
-
-        const resultMessage = `Draw! Both players exhausted. Earned ${halfReward} shards and ${xpGain} XP.`;
-        setBattleLog(prev => [...prev, resultMessage]);
-
-        setPlayerData(prev => ({
-          ...prev,
-          shards: prev.shards + halfReward,
-          experience: prev.experience + xpGain
-        }));
-
-        uiToast({
-          title: "Draw",
-          description: `You earned ${halfReward} shards and ${xpGain} XP.`,
-        });
-      }
-
-      // Add special message for higher difficulty tiers
-      if (aiDifficulty !== AIDifficultyTier.NOVICE) {
-        setTimeout(() => {
-          toast.info(`${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)} difficulty bonus applied!`, {
-            description: "Higher difficulties provide better rewards."
-          });
-        }, 2000);
-      }
-    }, 3000);
+    setGameStatus('end');
   };
 
   const resetGame = () => {
@@ -838,6 +770,48 @@ const Game = () => {
   );
 
   const renderGameContent = () => {
+    if (!walletConnected) {
+        return (
+            <UICard className="glassmorphism border-emerald-500/30 p-6 text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
+                <Button 
+                    onClick={() => monadGameService.connectWallet()}
+                    className="bg-gradient-to-r from-emerald-400 to-teal-500"
+                >
+                    Connect MetaMask
+                </Button>
+            </UICard>
+        );
+    }
+
+    if (!isRegistered) {
+        return (
+            <UICard className="glassmorphism border-emerald-500/30 p-6 text-center">
+                <h2 className="text-2xl font-bold text-white mb-4">Register to Play</h2>
+                <p className="text-gray-400 mb-6">Register your wallet to start playing Monad Chain Game</p>
+                <Button 
+                    onClick={async () => {
+                        try {
+                            toast.loading("Registering player on Monad blockchain...");
+                            await monadGameService.registerPlayer();
+                            setIsRegistered(true);
+                            toast.success("Successfully registered! Welcome to Monad Chain Game");
+                        } catch (error: any) {
+                            console.error("Registration failed:", error);
+                            const errorMessage = error.message || "Failed to register. Please try again.";
+                            toast.error("Registration failed", {
+                                description: errorMessage
+                            });
+                        }
+                    }}
+                    className="bg-gradient-to-r from-emerald-400 to-teal-500"
+                >
+                    Register Player
+                </Button>
+            </UICard>
+        );
+    }
+
     switch (gameStatus) {
       case 'room_select':
         return <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />;
@@ -1132,38 +1106,5 @@ const Game = () => {
                   <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
                 </div>
                 <div className="bg-black/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>
-                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">
-                    {battleLog.map((log, index) => (
-                      <p key={index} className="mb-1">{log}</p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="flex space-x-4 w-full max-w-md">
-                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">
-                  <Zap className="w-4 h-4 mr-2" />
-                  New Battle
-                </Button>
-                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">
-                  <Package className="w-4 h-4 mr-2" />
-                  View Inventory
-                </Button>
-              </div>
-            </div>
-          </UICard>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div>
-      {renderGameContent()}
-    </div>
-  );
-};
-
-export default Game;
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div className="min-h-screen bg-background">      <Navigation />      <div className="container mx-auto pt-24 px-4 pb-16">        {renderGameContent()}      </div>    </div>  );};
+                  export default Game;

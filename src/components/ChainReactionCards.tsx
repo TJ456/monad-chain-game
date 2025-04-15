@@ -4,25 +4,42 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { monadGameService } from '../services/MonadGameService';
 
 const ChainReactionCards = () => {
   const [isTriggering, setIsTriggering] = useState(false);
   
-  const triggerChainReaction = () => {
+  const triggerChainReaction = async () => {
     setIsTriggering(true);
     
-    toast.loading("Initiating smart contract event...", {
-      id: "chain-reaction"
-    });
-    
-    setTimeout(() => {
+    try {
+      toast.loading("Initiating smart contract event...", {
+        id: "chain-reaction"
+      });
+      
+      // Create a special card for the chain reaction
+      await monadGameService.mintCard({
+        name: "Blockchain Hack",
+        description: "Steals a random NFT from opponent's wallet",
+        rarity: 2, // Epic
+        cardType: 2, // Special
+        attack: 0,
+        defense: 0,
+        mana: 7,
+        special: 85 // Success rate
+      });
+      
       toast.success("Chain Reaction Complete!", {
         id: "chain-reaction",
         description: "Blockchain Hack stole 1 NFT from opponent's wallet"
       });
-      
+    } catch (error) {
+      toast.error("Chain reaction failed", {
+        id: "chain-reaction"
+      });
+    } finally {
       setIsTriggering(false);
-    }, 2000);
+    }
   };
   
   return (
