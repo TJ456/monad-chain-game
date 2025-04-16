@@ -53,6 +53,10 @@ const Game = () => {
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [isRegistered, setIsRegistered] = useState(false);
+  const [playerLastCards, setPlayerLastCards] = useState<GameCardType[]>([]);
+  const [consecutiveDefenseCount, setConsecutiveDefenseCount] = useState(0);
+  const [aiComboCounter, setAiComboCounter] = useState(0);
+  const [isPlayerStunned, setPlayerStunned] = useState(false);
 
   useEffect(() => {
     const savedShards = localStorage.getItem(STORAGE_KEY_SHARDS);
@@ -100,12 +104,10 @@ const Game = () => {
   useEffect(() => {
     const initializeBlockchain = async () => {
         try {
-            // Connect wallet
             const address = await monadGameService.connectWallet();
             setWalletAddress(address);
             setWalletConnected(true);
 
-            // Check if player is registered
             const playerData = await monadGameService.getPlayerData(address);
             setIsRegistered(!!playerData);
         } catch (error) {
@@ -139,20 +141,16 @@ const Game = () => {
 
     let opponentCardPool: GameCardType[];
 
-    // Filter cards based on difficulty
     switch (difficulty) {
       case AIDifficultyTier.NOVICE:
-        // Novice only gets common and rare cards
         opponentCardPool = cards.filter(card => card.rarity !== 'epic' && card.rarity !== 'legendary');
         break;
 
       case AIDifficultyTier.VETERAN:
-        // Veteran gets everything except legendary cards
         opponentCardPool = cards.filter(card => card.rarity !== 'legendary');
         break;
 
       case AIDifficultyTier.LEGEND:
-        // Legend gets all cards
         opponentCardPool = [...cards];
         break;
 
@@ -160,7 +158,6 @@ const Game = () => {
         opponentCardPool = [...cards];
     }
 
-    // Apply difficulty-specific enhancements to the cards
     opponentCardPool = enhanceAICards(opponentCardPool, difficulty);
 
     const randomCards: GameCardType[] = [];
@@ -172,7 +169,6 @@ const Game = () => {
 
     setOpponentCards(randomCards);
 
-    // Instead of going to waiting screen, go to inventory for card selection
     setGameStatus('inventory');
 
     let difficultyName = '';
@@ -203,11 +199,9 @@ const Game = () => {
   };
 
   const closeInventory = () => {
-    // If we came from room selection, go back to room selection
     if (opponentCards.length === 0) {
       setGameStatus('room_select');
     } else {
-      // Otherwise go to waiting screen
       setGameStatus('waiting');
     }
   };
@@ -278,59 +272,55 @@ const Game = () => {
   };
 
   function handleOpponentTurn() {
-    console.log("Executing AI turn...");
     if (gameStatus !== 'playing') return;
 
-    // Check if opponent is stunned
     if (isOpponentStunned) {
       setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
-      setIsOpponentStunned(false); // Reset stun after one turn
-      endTurn('player'); // Player gets another turn
+      setIsOpponentStunned(false);
+      endTurn('player');
       return;
     }
 
     const playableCards = opponentCards.filter(card => card.mana <= opponentMana);
-    console.log("AI playable cards:", playableCards);
 
     if (playableCards.length > 0) {
       let cardToPlay: GameCardType;
       let aiThinkingDelay = aiStrategies[aiDifficulty].thinkingTime;
 
-      // Add AI thinking message to battle log
       const thinkingMessage = getAIThinkingMessage(aiDifficulty);
       setBattleLog(prev => [...prev, thinkingMessage]);
 
-      // Select card based on difficulty
       switch (aiDifficulty) {
         case AIDifficultyTier.NOVICE:
-          // Novice AI uses random selection
           cardToPlay = selectCardNovice(playableCards, playerHealth, opponentHealth);
           break;
 
         case AIDifficultyTier.VETERAN:
-          // Veteran AI uses value-based selection
-          cardToPlay = selectCardVeteran(playableCards, playerHealth, opponentHealth, opponentMana);
+          cardToPlay = selectCardVeteran(
+            playableCards,
+            playerHealth,
+            opponentHealth,
+            opponentMana,
+            playerLastCards
+          );
           break;
 
         case AIDifficultyTier.LEGEND:
-          // Legend AI uses situational strategy
           cardToPlay = selectCardLegend(
             playableCards,
             playerHealth,
             opponentHealth,
             opponentMana,
             playerDeck,
-            selectedCard // Pass the player's last played card
+            playerLastCards[0]
           );
           break;
 
         default:
-          cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
+          cardToPlay = playableCards[0];
       }
 
       setTimeout(() => {
-        console.log("AI playing card:", cardToPlay);
-
         setOpponentMana(prev => prev - cardToPlay.mana);
         setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
 
@@ -339,13 +329,56 @@ const Game = () => {
         let logEntry = `Opponent played ${cardToPlay.name}.`;
 
         if (cardToPlay.attack) {
-          newPlayerHealth = Math.max(0, playerHealth - cardToPlay.attack);
-          logEntry += ` Dealt ${cardToPlay.attack} damage.`;
+          let attackBonus = 0;
+          if (aiDifficulty !== AIDifficultyTier.NOVICE && aiComboCounter > 0) {
+            attackBonus = Math.floor(cardToPlay.attack * (aiComboCounter * 0.1));
+            logEntry += ` Combo bonus: +${attackBonus} damage!`;
+          }
+
+          const totalDamage = cardToPlay.attack + attackBonus;
+          newPlayerHealth = Math.max(0, playerHealth - totalDamage);
+          logEntry += ` Dealt ${totalDamage} damage.`;
+
+          setAiComboCounter(prev => (cardToPlay.type === 'attack' ? prev + 1 : 0));
+        } else {
+          setAiComboCounter(0);
         }
 
         if (cardToPlay.defense) {
-          newOpponentHealth = Math.min(30, opponentHealth + cardToPlay.defense);
-          logEntry += ` Gained ${cardToPlay.defense} health.`;
+          const defenseBonus = consecutiveDefenseCount * (aiDifficulty === AIDifficultyTier.LEGEND ? 0.2 : 0.1);
+          const totalHealing = Math.floor(cardToPlay.defense * (1 + defenseBonus));
+          newOpponentHealth = Math.min(20, opponentHealth + totalHealing);
+          logEntry += ` Gained ${totalHealing} health.`;
+          setConsecutiveDefenseCount(prev => prev + 1);
+        } else {
+          setConsecutiveDefenseCount(0);
+        }
+
+        if (cardToPlay.specialEffect) {
+          logEntry += ` ${cardToPlay.specialEffect.description}`;
+
+          switch (cardToPlay.specialEffect.type) {
+            case 'stun':
+              if (Math.random() < (aiDifficulty === AIDifficultyTier.LEGEND ? 0.4 : 0.3)) {
+                setPlayerStunned(true);
+                logEntry += " (Player stunned!)";
+              }
+              break;
+
+            case 'leech':
+              if (cardToPlay.attack && cardToPlay.specialEffect.value) {
+                const leechAmount = Math.floor(cardToPlay.attack * (cardToPlay.specialEffect.value / 100));
+                newOpponentHealth = Math.min(20, newOpponentHealth + leechAmount);
+                logEntry += ` (Leeched ${leechAmount} health)`;
+              }
+              break;
+
+            case 'mana':
+              const manaGain = cardToPlay.specialEffect.value || 1;
+              setOpponentMana(prev => Math.min(10, prev + manaGain));
+              logEntry += ` (Gained ${manaGain} mana)`;
+              break;
+          }
         }
 
         setPlayerHealth(newPlayerHealth);
@@ -406,7 +439,6 @@ const Game = () => {
     setSelectedCard(null);
 
     if (nextPlayer === 'opponent') {
-      console.log("Triggering AI turn...");
       setTimeout(handleOpponentTurn, 1000);
     }
   }, [boostActive, boostDetails]);
@@ -454,8 +486,7 @@ const Game = () => {
     setFatigueDamage(prev => prev + 1);
     setConsecutiveSkips(prev => prev + 1);
 
-    // Only check for draw after 3 consecutive skips
-    if (consecutiveSkips >= 2) { // Changed from 3 to 2 since we increment before checking
+    if (consecutiveSkips >= 2) {
         endGame(null);
         return;
     }
@@ -464,13 +495,7 @@ const Game = () => {
   };
 
   const playCard = async (card: GameCardType) => {
-    if (!walletConnected || !isRegistered) {
-        toast.error("Please connect wallet and register first");
-        return;
-    }
-
-    if (gameStatus !== 'playing' || currentTurn !== 'player') {
-      toast.warning("Not your turn!");
+    if (currentTurn !== 'player' || gameStatus !== 'playing') {
       return;
     }
 
@@ -480,178 +505,114 @@ const Game = () => {
     }
 
     try {
-        const newMove: MonadGameMove = {
-            moveId: `move-${Date.now()}`,
-            playerAddress: walletAddress,
-            cardId: card.id,
-            moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
-            timestamp: Date.now(),
-            verified: false
-        };
+      const newMove: MonadGameMove = {
+          gameId: Date.now(),
+          moveId: `move-${Date.now()}`,
+          playerAddress: walletAddress,
+          cardId: card.id,
+          moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
+          timestamp: Date.now(),
+          verified: false
+      };
 
-        // Submit move to blockchain
-        await monadGameService.executeParallelMoves([newMove]);
+      await monadGameService.executeParallelMoves([newMove]);
 
-        setPlayerMana(prev => prev - card.mana);
-        setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
-        setSelectedCard(card);
+      setPlayerMana(prev => prev - card.mana);
+      setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
+      setSelectedCard(card);
+      
+      setPlayerLastCards(prev => [card, ...prev].slice(0, 3));
 
-        let logEntry = `You played ${card.name}.`;
-        let opponentNewHealth = opponentHealth;
-        let playerNewHealth = playerHealth;
-        let extraMana = 0;
-        let applyStun = false;
+      let logEntry = `You played ${card.name}.`;
+      let opponentNewHealth = opponentHealth;
+      let playerNewHealth = playerHealth;
+      let extraMana = 0;
+      let applyStun = false;
 
-        // Apply card effects based on type
-        if (card.attack) {
-          // Calculate damage with potential critical hit for higher rarity cards
-          let damage = card.attack;
-          let criticalHit = false;
-
-          // Critical hit chance based on card rarity
-          if (card.rarity === 'epic' && Math.random() < 0.2) {
-            damage = Math.floor(damage * 1.5);
-            criticalHit = true;
-          } else if (card.rarity === 'legendary' && Math.random() < 0.3) {
-            damage = Math.floor(damage * 2);
-            criticalHit = true;
-          }
-
-          opponentNewHealth = Math.max(0, opponentHealth - damage);
-          logEntry += criticalHit
-            ? ` CRITICAL HIT! Dealt ${damage} damage.`
-            : ` Dealt ${damage} damage.`;
+      if (card.attack) {
+        let damageBonus = 0;
+        const lastCard = playerLastCards[0];
+        if (lastCard?.type === 'attack') {
+          damageBonus = Math.floor(card.attack * 0.2);
+          logEntry += ` Combo bonus: +${damageBonus} damage!`;
         }
 
-        if (card.defense) {
-          // Healing is more effective at lower health (comeback mechanic)
-          let healing = card.defense;
-          if (playerHealth < 10) {
-            healing = Math.floor(healing * 1.3); // 30% bonus when low on health
-            logEntry += ` Enhanced healing! Gained ${healing} health.`;
-          } else {
-            logEntry += ` Gained ${healing} health.`;
-          }
-          playerNewHealth = Math.min(30, playerHealth + healing);
+        const totalDamage = card.attack + damageBonus;
+        opponentNewHealth = Math.max(0, opponentHealth - totalDamage);
+        logEntry += ` Dealt ${totalDamage} damage.`;
+      }
+
+      if (card.defense) {
+        let healingBonus = 0;
+        if (playerLastCards[0]?.type === 'defense') {
+          healingBonus = Math.floor(card.defense * 0.15);
+          logEntry += ` Enhanced healing: +${healingBonus}!`;
         }
 
-        // Handle special effects with expanded functionality
-        if (card.specialEffect) {
-          logEntry += ` ${card.specialEffect.description}`;
+        const totalHealing = card.defense + healingBonus;
+        playerNewHealth = Math.min(20, playerHealth + totalHealing);
+        logEntry += ` Gained ${totalHealing} health.`;
+      }
 
-          switch (card.specialEffect.type) {
-            case 'damage':
-              if (card.specialEffect.value) {
-                opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
-                logEntry += ` (${card.specialEffect.value} extra damage)`;
-              }
-              break;
+      if (card.specialEffect) {
+        logEntry += ` ${card.specialEffect.description}`;
 
-            case 'heal':
-              if (card.specialEffect.value) {
-                playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
-                logEntry += ` (${card.specialEffect.value} extra healing)`;
-              }
-              break;
+        switch (card.specialEffect.type) {
+          case 'damage':
+            if (card.specialEffect.value) {
+              opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
+              logEntry += ` (${card.specialEffect.value} extra damage)`;
+            }
+            break;
 
-            case 'mana':
-              if (card.specialEffect.value) {
-                extraMana = card.specialEffect.value;
-                logEntry += ` (Gained ${extraMana} extra mana)`;
-              }
-              break;
+          case 'heal':
+            if (card.specialEffect.value) {
+              playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
+              logEntry += ` (${card.specialEffect.value} extra healing)`;
+            }
+            break;
 
-            case 'stun':
-              applyStun = true;
-              logEntry += ` (Opponent stunned for 1 turn)`;
-              break;
+          case 'mana':
+            if (card.specialEffect.value) {
+              extraMana = card.specialEffect.value;
+              logEntry += ` (Gained ${extraMana} extra mana)`;
+            }
+            break;
 
-            case 'leech':
-              if (card.specialEffect.value && card.attack) {
-                // Leech life equal to a percentage of damage dealt
-                const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
-                playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
-                logEntry += ` (Leeched ${leechAmount} health)`;
-              }
-              break;
-          }
+          case 'stun':
+            applyStun = true;
+            logEntry += ` (Opponent stunned for 1 turn)`;
+            break;
 
-          // Handle effect types for more complex mechanics
-          switch (card.specialEffect.effectType) {
-            case 'COMBO':
-              // Combo cards get stronger if played after certain other cards
-              if (card.specialEffect.comboWith && pendingMoves.length > 0) {
-                const lastMove = pendingMoves[pendingMoves.length - 1];
-                if (card.specialEffect.comboWith.includes(lastMove.cardId)) {
-                  // Bonus damage for combo
-                  opponentNewHealth = Math.max(0, opponentNewHealth - 3);
-                  logEntry += ` (COMBO BONUS: +3 damage)`;
-                }
-              }
-              break;
-
-            case 'COUNTER':
-              // Counter cards are more effective against certain types
-              // This would need to track the opponent's last card
-              break;
-          }
+          case 'leech':
+            if (card.specialEffect.value && card.attack) {
+              const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
+              playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
+              logEntry += ` (Leeched ${leechAmount} health)`;
+            }
+            break;
         }
+      }
 
-        setOpponentHealth(opponentNewHealth);
-        setPlayerHealth(playerNewHealth);
-        setBattleLog(prev => [...prev, logEntry]);
-        setPendingMoves(prev => [...prev, newMove]);
+      setOpponentHealth(opponentNewHealth);
+      setPlayerHealth(playerNewHealth);
+      setBattleLog(prev => [...prev, logEntry]);
+      setPendingMoves(prev => [...prev, newMove]);
 
-        // Reset consecutive skips counter when a card is played
-        setConsecutiveSkips(0);
-
-        // Apply extra mana if card granted it
-        if (extraMana > 0) {
-          setPlayerMana(prev => Math.min(10, prev + extraMana));
-        }
-
-        // Apply stun effect if card has it
-        if (applyStun) {
-          setIsOpponentStunned(true);
-        }
-
-        toast.loading("Submitting move to MONAD blockchain...", {
-          id: newMove.moveId,
-          duration: 2000,
-        });
-
-        setTimeout(() => {
-          setPendingMoves(prev =>
-            prev.map(m => m.moveId === newMove.moveId ? {
-              ...m,
-              verified: true,
-              onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
-            } : m)
-          );
-
-          toast.success("Move confirmed on-chain", {
-            id: newMove.moveId,
-            description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
-          });
-
-          if (opponentNewHealth <= 0) {
-            endGame(true);
-            return;
-          }
-
-          // If opponent is stunned, they skip their turn
-          if (isOpponentStunned) {
-            setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
-            setIsOpponentStunned(false); // Reset stun after one turn
-            endTurn('player'); // Player gets another turn
-          } else {
-            endTurn('opponent');
-          }
-        }, isOnChain ? 2000 : 500);
-    } catch (error) {
-        console.error("Failed to submit move:", error);
-        toast.error("Failed to submit move to blockchain");
+      if (opponentNewHealth <= 0) {
+        endGame(true);
         return;
+      }
+
+      if (applyStun) {
+        setIsOpponentStunned(true);
+      }
+
+      endTurn('opponent');
+
+    } catch (error) {
+      console.error("Error playing card:", error);
+      toast.error("Failed to play card");
     }
   };
 
@@ -676,7 +637,6 @@ const Game = () => {
 
     try {
         await monadGameService.redeemNFT();
-        // ... rest of your existing redemption logic ...
     } catch (error) {
         console.error("NFT redemption failed:", error);
         toast.error("Failed to redeem NFT");
@@ -685,7 +645,6 @@ const Game = () => {
 
   const endGame = async (playerWon: boolean | null) => {
     try {
-        // Record game result on blockchain
         const gameData = {
             winner: playerWon ? walletAddress : null,
             playerHealth: playerHealth,
@@ -694,8 +653,8 @@ const Game = () => {
             moves: pendingMoves
         };
 
-        // Submit moves batch
         const movesBatch = {
+            gameId: Date.now(),
             batchId: Date.now().toString(),
             moves: pendingMoves,
             stateRoot: "0x" + Math.random().toString(16).slice(2),
@@ -706,14 +665,10 @@ const Game = () => {
 
         await monadGameService.submitMovesBatch(movesBatch);
 
-        // Award shards
         if (playerWon) {
             const reward = getShardReward();
             await monadGameService.claimShards(movesBatch.batchId);
-            // ... rest of victory logic ...
         }
-
-        // ... rest of your existing endGame logic ...
 
     } catch (error) {
         console.error("Failed to record game result:", error);
@@ -724,8 +679,6 @@ const Game = () => {
   };
 
   const resetGame = () => {
-    // Don't reset player deck - use the one they selected
-    // Only reset if they haven't selected any cards
     if (playerDeck.length === 0) {
       setPlayerDeck(allPlayerCards.slice(0, 3));
     }
@@ -823,7 +776,7 @@ const Game = () => {
             onClose={closeInventory}
             onSelectCards={handleCardSelection}
             maxSelectable={3}
-            selectionMode={opponentCards.length > 0} // Only enable selection mode if we came from difficulty selection
+            selectionMode={opponentCards.length > 0}
           />
         );
 
