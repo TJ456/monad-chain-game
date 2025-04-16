@@ -12,6 +12,8 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
     // Counters
     Counters.Counter private _cardIds;
     Counters.Counter private _tournamentIds;
+    Counters.Counter private _moveIds;
+    Counters.Counter private _gameIds;
 
     // Constants
     uint256 public constant EXPERIENCE_PER_LEVEL = 1000;
@@ -29,6 +31,7 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
         uint256 shards;
         uint256 lastGameTime;
         bool isRegistered;
+        bytes32 lastMoveHash; // Added for move verification
     }
 
     struct Card {
@@ -41,6 +44,7 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
         uint256 mana;
         uint256 mintTime;
         address creator;
+        bool isActive;  // Added to track card status
     }
 
     struct Tournament {
@@ -63,6 +67,21 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
         uint256 startTime;
         bool isFinished;
         address winner;
+        uint256 currentTurn;  // Added to track turns
+        bytes32[] moveHistory; // Added to store moves
+        uint256 player1Health; // Added to track health
+        uint256 player2Health; // Added to track health
+    }
+
+    struct GameMove {
+        uint256 moveId;
+        address player;
+        uint256 cardId;
+        uint8 moveType;
+        uint256 timestamp;
+        bytes signature;
+        bool verified;
+        bytes32 previousMoveHash; // For move chain verification
     }
 
     // Mappings
@@ -71,12 +90,16 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
     mapping(uint256 => Tournament) public tournaments;
     mapping(uint256 => Game) public games;
     mapping(address => uint256) public playerCurrentGame;
+    mapping(uint256 => GameMove[]) public gameMoves; // Added to store moves per game
+    mapping(bytes32 => bool) public verifiedMoveHashes; // Added for move verification
 
     // Events
     event PlayerRegistered(address indexed player);
     event CardMinted(uint256 indexed cardId, address indexed creator, string name);
     event GameStarted(uint256 indexed gameId, address indexed player1, address indexed player2);
     event GameEnded(uint256 indexed gameId, address indexed winner);
+    event MoveSubmitted(uint256 indexed gameId, uint256 indexed moveId, address indexed player);
+    event MoveVerified(uint256 indexed gameId, uint256 indexed moveId);
     event TournamentCreated(uint256 indexed tournamentId, uint256 prizePool, uint256 startTime);
     event TournamentWinner(uint256 indexed tournamentId, address indexed winner, uint256 prize);
     event ShardsAwarded(address indexed player, uint256 amount);
@@ -100,7 +123,8 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
             losses: 0,
             shards: 10, // Starting shards
             lastGameTime: 0,
-            isRegistered: true
+            isRegistered: true,
+            lastMoveHash: bytes32(0) // Initialize last move hash
         });
 
         emit PlayerRegistered(msg.sender);
@@ -127,7 +151,8 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
             defense: defense,
             mana: mana,
             mintTime: block.timestamp,
-            creator: msg.sender
+            creator: msg.sender,
+            isActive: true // Set card as active
         });
 
         _safeMint(msg.sender, newCardId);
@@ -153,7 +178,11 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
             player2Cards: new uint256[](0),
             startTime: block.timestamp,
             isFinished: false,
-            winner: address(0)
+            winner: address(0),
+            currentTurn: 1, // Initialize turn
+            moveHistory: new bytes32[](0), // Initialize move history
+            player1Health: 100, // Initialize health
+            player2Health: 100 // Initialize health
         });
 
         playerCurrentGame[msg.sender] = gameId;
@@ -184,6 +213,52 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
         }
 
         emit GameEnded(gameId, winner);
+    }
+
+    function submitMove(
+        uint256 gameId,
+        uint256 cardId,
+        uint8 moveType,
+        bytes memory signature
+    ) external {
+        Game storage game = games[gameId];
+        require(!game.isFinished, "Game already finished");
+        require(msg.sender == game.player1 || msg.sender == game.player2, "Not a player");
+        require(cards[cardId].isActive, "Card is not active");
+
+        uint256 moveId = _moveIds.current();
+        bytes32 previousMoveHash = game.moveHistory.length > 0 ? game.moveHistory[game.moveHistory.length - 1] : bytes32(0);
+        bytes32 moveHash = keccak256(abi.encodePacked(gameId, moveId, msg.sender, cardId, moveType, block.timestamp, previousMoveHash));
+
+        gameMoves[gameId].push(GameMove({
+            moveId: moveId,
+            player: msg.sender,
+            cardId: cardId,
+            moveType: moveType,
+            timestamp: block.timestamp,
+            signature: signature,
+            verified: false,
+            previousMoveHash: previousMoveHash
+        }));
+
+        game.moveHistory.push(moveHash);
+        players[msg.sender].lastMoveHash = moveHash;
+
+        _moveIds.increment();
+        emit MoveSubmitted(gameId, moveId, msg.sender);
+    }
+
+    function verifyMove(uint256 gameId, uint256 moveId) external {
+        GameMove storage move = gameMoves[gameId][moveId];
+        require(!move.verified, "Move already verified");
+
+        bytes32 moveHash = keccak256(abi.encodePacked(gameId, move.moveId, move.player, move.cardId, move.moveType, move.timestamp, move.previousMoveHash));
+        require(moveHash == players[move.player].lastMoveHash, "Invalid move hash");
+
+        move.verified = true;
+        verifiedMoveHashes[moveHash] = true;
+
+        emit MoveVerified(gameId, moveId);
     }
 
     // Tournament System

@@ -20,16 +20,14 @@ export class MonadGameService {
 
     try {
       this.provider = new Web3Provider(window.ethereum);
-      await this.provider.send("eth_requestAccounts", []); // Request wallet connection
+      await this.provider.send("eth_requestAccounts", []);
       this.signer = this.provider.getSigner();
       this.walletAddress = await this.signer.getAddress();
 
-      // Validate network
       const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
       const currentNetwork = await this.provider.getNetwork();
       
       if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
-        // Attempt to switch network
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
@@ -37,20 +35,18 @@ export class MonadGameService {
           });
         } catch (switchError: any) {
           if (switchError.code === 4902) {
-            // Chain not added, prompt user to add it
             throw new Error(`Please add the ${import.meta.env.VITE_NETWORK_NAME} network to your wallet`);
           }
           throw switchError;
         }
       }
 
-      // Initialize contract
       const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
       if (!contractAddress) {
         throw new Error("Monad contract address not configured");
       }
 
-      const contractABI = (await import('../contracts/MonadGame.json')).default.abi as ContractInterface;
+      const contractABI = (await import('../contracts/MonadGame.json')).default.abi;
       this.monadGameContract = new ethers.Contract(
         contractAddress,
         contractABI,
@@ -100,7 +96,7 @@ export class MonadGameService {
       throw new Error("Wallet not connected");
     }
 
-    const playerData = await this.monadGameContract?.getPlayerData(address);
+    const playerData = await this.monadGameContract?.getPlayer(address);
     return playerData;
   }
 
@@ -109,18 +105,28 @@ export class MonadGameService {
       throw new Error("Wallet not connected");
     }
     
-    // Submit moves batch for parallel execution
-    const batch: MovesBatch = {
-      batchId: Date.now().toString(),
-      moves,
-      stateRoot: "0x" + Math.random().toString(16).slice(2),
-      zkProof: "0x" + Math.random().toString(16).slice(2),
-      verificationTime: 0.023,
-      submittedInBlock: 0
-    };
+    // Now submits each move individually to maintain proper chain of verification
+    for (const move of moves) {
+      const signature = await this.signMove(move);
+      const tx = await this.monadGameContract?.submitMove(
+        move.gameId,
+        move.cardId,
+        move.moveType,
+        signature
+      );
+      await tx.wait();
+    }
+  }
 
-    const tx = await this.monadGameContract?.submitMovesBatch(batch);
-    await tx.wait();
+  private async signMove(move: MonadGameMove): Promise<string> {
+    if (!this.signer) throw new Error("Wallet not connected");
+    
+    const message = ethers.utils.solidityKeccak256(
+      ["uint256", "string", "address", "string", "uint8", "uint256"],
+      [move.gameId, move.moveId, move.playerAddress, move.cardId, move.moveType, move.timestamp]
+    );
+    
+    return await this.signer.signMessage(ethers.utils.arrayify(message));
   }
 
   async submitMovesBatch(batch: MovesBatch): Promise<void> {
@@ -128,16 +134,29 @@ export class MonadGameService {
       throw new Error("Wallet not connected");
     }
     
-    const tx = await this.monadGameContract?.submitMovesBatch(batch);
-    await tx.wait();
+    // Submit and verify each move in the batch
+    for (const move of batch.moves) {
+      const signature = await this.signMove(move);
+      const tx = await this.monadGameContract?.submitMove(
+        batch.gameId,
+        move.cardId,
+        move.moveType,
+        signature
+      );
+      await tx.wait();
+
+      // Verify the move
+      const verifyTx = await this.monadGameContract?.verifyMove(batch.gameId, move.moveId);
+      await verifyTx.wait();
+    }
   }
 
-  async claimShards(batchId: string): Promise<void> {
+  async claimShards(gameId: string): Promise<void> {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
     }
 
-    const tx = await this.monadGameContract?.claimShards(batchId);
+    const tx = await this.monadGameContract?.claimReward(gameId);
     await tx.wait();
   }
 
@@ -155,7 +174,15 @@ export class MonadGameService {
       throw new Error("Wallet not connected");
     }
 
-    const tx = await this.monadGameContract?.mintCard(cardData);
+    const tx = await this.monadGameContract?.mintCard(
+      cardData.name,
+      cardData.rarity,
+      cardData.cardType,
+      cardData.attack,
+      cardData.defense,
+      cardData.mana,
+      { value: ethers.utils.parseEther("0.01") }
+    );
     await tx.wait();
   }
 }

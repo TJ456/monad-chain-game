@@ -118,13 +118,19 @@ export interface GameState {
   lastSyncedBlock?: number;
   pendingTransactions: number;
   networkStatus: 'connected' | 'syncing' | 'disconnected';
-  // New Monad-specific state tracking
+  // Enhanced game state tracking
+  gameData?: {
+    currentTurn: number;
+    moveHistory: string[];
+    player1Health: number;
+    player2Health: number;
+    lastVerifiedMove: string;
+  };
   shardInfo?: {
     currentShard: number;
     totalShards: number;
     crossShardPending: number;
   };
-  // ZK-proof verification status for game integrity
   zkVerification?: {
     lastProofHash: string;
     verifiedUntilMove: number;
@@ -166,12 +172,14 @@ export interface MonadTransaction {
 
 export interface MonadGameMove {
   moveId: string;
+  gameId: number;
   playerAddress: string;
   cardId: string;
   moveType: 'attack' | 'defend' | 'special' | 'compose' | 'evolve';
   timestamp: number;
   onChainSignature?: string;
   verified: boolean;
+  previousMoveHash?: string;
   // ZK-proof for move validity
   zkProof?: {
     proof: string;
@@ -188,6 +196,7 @@ export interface MonadGameMove {
 
 // ZK-rollup batch for efficient move processing
 export interface MovesBatch {
+  gameId: number;
   batchId: string;
   moves: MonadGameMove[];
   stateRoot: string;
