@@ -129,20 +129,26 @@ const MonadBoostMechanic: React.FC<MonadBoostMechanicProps> = ({
   };
 
   return (
-    <Card className="glassmorphism border-indigo-500/30 p-4">
+    <Card className={`glassmorphism ${(activeBoost || (boostActive && boostDetails)) ? 'border-yellow-500/50 shadow-lg shadow-yellow-400/20' : 'border-indigo-500/30'} p-4`}>
       <div className="flex items-center space-x-2 mb-4">
-        <div className="h-8 w-8 rounded-full bg-indigo-500/30 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+        <div className={`h-8 w-8 rounded-full ${(activeBoost || (boostActive && boostDetails)) ? 'bg-yellow-500/30' : 'bg-indigo-500/30'} flex items-center justify-center`}>
+          {(activeBoost || (boostActive && boostDetails)) ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          )}
         </div>
         <div>
-          <h3 className="text-md font-bold text-white">MONAD Boost</h3>
-          <p className="text-xs text-gray-400">Stake tokens to amplify card power</p>
+          <h3 className={`text-md font-bold ${(activeBoost || (boostActive && boostDetails)) ? 'text-yellow-400' : 'text-white'}`}>MONAD Boost</h3>
+          <p className="text-xs text-gray-400">{(activeBoost || (boostActive && boostDetails)) ? 'Active power amplification' : 'Stake tokens to amplify card power'}</p>
         </div>
 
         {(activeBoost || (boostActive && boostDetails)) && (
-          <Badge className="ml-auto bg-indigo-600/50 text-white animate-pulse">
+          <Badge className="ml-auto bg-yellow-600/50 text-white animate-pulse">
             Active: {activeBoost ? activeBoost.timeLeft : boostDetails?.remainingTurns} turns left
           </Badge>
         )}
@@ -150,38 +156,62 @@ const MonadBoostMechanic: React.FC<MonadBoostMechanicProps> = ({
 
       <div className="space-y-4">
         {(activeBoost || (boostActive && boostDetails)) ? (
-          <div className="bg-black/30 p-3 rounded-lg border border-indigo-500/50">
-            <div className="text-center mb-2">
-              <span className="text-indigo-400 font-bold text-lg">
-                +{activeBoost ? activeBoost.effect : boostDetails?.effect}% Power
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-400">Staked MONAD</span>
-              <span className="text-indigo-300 font-bold">
-                {activeBoost ? activeBoost.amount : boostAmount}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Duration</span>
-              <span className="text-indigo-300 font-bold">
-                {activeBoost
-                  ? `${activeBoost.timeLeft}/${activeBoost.duration} turns`
-                  : `${boostDetails?.remainingTurns} turns`
-                }
-              </span>
-            </div>
-            <div className="w-full h-2 bg-black/50 rounded-full mt-2">
-              <div
-                className="h-2 bg-gradient-to-r from-indigo-400 to-violet-500 rounded-full"
-                style={{
-                  width: activeBoost
-                    ? `${(activeBoost.timeLeft / activeBoost.duration) * 100}%`
-                    : boostDetails
-                      ? `${(boostDetails.remainingTurns / 5) * 100}%` // Assuming 5 turns max
-                      : '0%'
-                }}
-              ></div>
+          <div className="bg-black/30 p-3 rounded-lg border border-yellow-500/50 relative overflow-hidden">
+            {/* Animated background effect */}
+            <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-indigo-500/5 animate-pulse"></div>
+
+            <div className="relative z-10">
+              <div className="text-center mb-2">
+                <span className="text-yellow-400 font-bold text-lg flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  +{activeBoost ? activeBoost.effect : boostDetails?.effect}% Power
+                </span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-400">Staked MONAD</span>
+                <span className="text-yellow-400 font-bold">
+                  {activeBoost ? activeBoost.amount : boostAmount}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Duration</span>
+                <span className="text-yellow-400 font-bold">
+                  {activeBoost
+                    ? `${activeBoost.timeLeft}/${activeBoost.duration} turns`
+                    : `${boostDetails?.remainingTurns} turns`
+                  }
+                </span>
+              </div>
+              <div className="w-full h-2 bg-black/50 rounded-full mt-2">
+                <div
+                  className="h-2 bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full"
+                  style={{
+                    width: activeBoost
+                      ? `${(activeBoost.timeLeft / activeBoost.duration) * 100}%`
+                      : boostDetails
+                        ? `${(boostDetails.remainingTurns / 5) * 100}%` // Assuming 5 turns max
+                        : '0%'
+                  }}
+                ></div>
+              </div>
+
+              {/* Visual indicator of boosted cards */}
+              <div className="mt-3 pt-2 border-t border-yellow-500/20">
+                <div className="text-xs text-gray-400 mb-1">Boosted Card Effects:</div>
+                <div className="flex space-x-2">
+                  <div className="px-2 py-1 bg-black/50 rounded text-xs text-yellow-400 border border-yellow-500/30">
+                    +{Math.round((activeBoost?.effect || boostDetails?.effect || 0) * 0.5)}% ATK
+                  </div>
+                  <div className="px-2 py-1 bg-black/50 rounded text-xs text-yellow-400 border border-yellow-500/30">
+                    +{Math.round((activeBoost?.effect || boostDetails?.effect || 0) * 0.3)}% DEF
+                  </div>
+                  <div className="px-2 py-1 bg-black/50 rounded text-xs text-yellow-400 border border-yellow-500/30">
+                    +{Math.round((activeBoost?.effect || boostDetails?.effect || 0) * 0.2)}% Special
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
@@ -272,44 +302,57 @@ const MonadBoostMechanic: React.FC<MonadBoostMechanicProps> = ({
 
       {/* Enhanced card preview with boost effect */}
       {(activeBoost || (boostActive && boostDetails)) && (
-        <div className="mt-4 p-3 bg-black/20 rounded-lg border border-indigo-500/30">
-          <div className="text-xs text-center text-gray-400 mb-2">
-            Card Power Preview with Boost
-          </div>
-          <div className="flex justify-between space-x-2">
-            <div className="text-center flex-1 p-2 bg-black/30 rounded">
-              <div className="text-xs text-gray-500">Attack</div>
-              <div className="flex items-center justify-center">
-                <span className="text-white">5</span>
-                <span className="text-green-400 text-xs ml-1">+{Math.round(5 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
+        <div className="mt-4 p-3 bg-black/20 rounded-lg border border-yellow-500/30 relative overflow-hidden">
+          {/* Animated background effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-indigo-500/5 animate-pulse"></div>
+
+          <div className="relative z-10">
+            <div className="flex items-center justify-center text-xs text-yellow-400 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              MONAD Boosted Card Preview
+            </div>
+
+            <div className="flex justify-between space-x-2">
+              <div className="text-center flex-1 p-2 bg-black/30 rounded border border-red-500/30">
+                <div className="text-xs text-red-400 font-semibold">Attack</div>
+                <div className="flex items-center justify-center">
+                  <span className="text-white">5</span>
+                  <span className="text-yellow-400 text-xs ml-1">+{Math.round(5 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
+                </div>
+                <div className="text-[10px] text-yellow-400 mt-1">
+                  ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
+                </div>
               </div>
-              <div className="text-[10px] text-green-400 mt-1">
-                ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
+              <div className="text-center flex-1 p-2 bg-black/30 rounded border border-green-500/30">
+                <div className="text-xs text-green-400 font-semibold">Defense</div>
+                <div className="flex items-center justify-center">
+                  <span className="text-white">3</span>
+                  <span className="text-yellow-400 text-xs ml-1">+{Math.round(3 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
+                </div>
+                <div className="text-[10px] text-yellow-400 mt-1">
+                  ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
+                </div>
+              </div>
+              <div className="text-center flex-1 p-2 bg-black/30 rounded border border-blue-500/30">
+                <div className="text-xs text-blue-400 font-semibold">Special</div>
+                <div className="flex items-center justify-center">
+                  <span className="text-white">2</span>
+                  <span className="text-yellow-400 text-xs ml-1">+{Math.round(2 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
+                </div>
+                <div className="text-[10px] text-yellow-400 mt-1">
+                  ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
+                </div>
               </div>
             </div>
-            <div className="text-center flex-1 p-2 bg-black/30 rounded">
-              <div className="text-xs text-gray-500">Defense</div>
-              <div className="flex items-center justify-center">
-                <span className="text-white">3</span>
-                <span className="text-green-400 text-xs ml-1">+{Math.round(3 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
-              </div>
-              <div className="text-[10px] text-green-400 mt-1">
-                ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
-              </div>
+
+            <div className="mt-2 text-xs text-center text-yellow-400 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+              All active cards receive this MONAD boost
             </div>
-            <div className="text-center flex-1 p-2 bg-black/30 rounded">
-              <div className="text-xs text-gray-500">Special</div>
-              <div className="flex items-center justify-center">
-                <span className="text-white">2</span>
-                <span className="text-green-400 text-xs ml-1">+{Math.round(2 * (activeBoost ? activeBoost.effect : boostDetails?.effect || 0)/100)}</span>
-              </div>
-              <div className="text-[10px] text-green-400 mt-1">
-                ({activeBoost ? activeBoost.effect : boostDetails?.effect}% boost)
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-center text-indigo-400">
-            All active cards receive this boost
           </div>
         </div>
       )}

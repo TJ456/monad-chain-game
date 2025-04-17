@@ -26,7 +26,7 @@ export class MonadGameService {
 
       const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
       const currentNetwork = await this.provider.getNetwork();
-      
+
       if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
         try {
           await window.ethereum.request({
@@ -104,7 +104,7 @@ export class MonadGameService {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
     }
-    
+
     // Now submits each move individually to maintain proper chain of verification
     for (const move of moves) {
       const signature = await this.signMove(move);
@@ -120,12 +120,12 @@ export class MonadGameService {
 
   private async signMove(move: MonadGameMove): Promise<string> {
     if (!this.signer) throw new Error("Wallet not connected");
-    
+
     const message = ethers.utils.solidityKeccak256(
       ["uint256", "string", "address", "string", "uint8", "uint256"],
       [move.gameId, move.moveId, move.playerAddress, move.cardId, move.moveType, move.timestamp]
     );
-    
+
     return await this.signer.signMessage(ethers.utils.arrayify(message));
   }
 
@@ -133,7 +133,7 @@ export class MonadGameService {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
     }
-    
+
     // Submit and verify each move in the batch
     for (const move of batch.moves) {
       const signature = await this.signMove(move);
@@ -151,11 +151,20 @@ export class MonadGameService {
     }
   }
 
-  async claimShards(gameId: string): Promise<void> {
+  async claimShards(gameId: string, gameResult?: any): Promise<void> {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
     }
 
+    // If game result is provided, submit it first
+    if (gameResult) {
+      // In a real implementation, this would submit the game result to the blockchain
+      console.log('Submitting game result to blockchain:', gameResult);
+      // Simulate blockchain delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Claim reward
     const tx = await this.monadGameContract?.claimReward(gameId);
     await tx.wait();
   }
@@ -281,7 +290,7 @@ export class MonadGameService {
     ]);
 
     const participants = await this.getTournamentParticipants(tournamentId);
-    
+
     return {
       isActive: tournament.active,
       isVerified,

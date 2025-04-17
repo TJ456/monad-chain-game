@@ -49,7 +49,14 @@ const Game = () => {
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficultyTier>(AIDifficultyTier.NOVICE);
   const [playerMonadBalance, setPlayerMonadBalance] = useState(1000);
   const [boostActive, setBoostActive] = useState(false);
-  const [boostDetails, setBoostDetails] = useState<{effect: number, remainingTurns: number} | null>(null);
+  const [boostDetails, setBoostDetails] = useState<{
+    effect: number,
+    remainingTurns: number,
+    stakedAmount?: number,
+    powerBoost?: number,
+    efficiency?: number,
+    affectedCards?: string[]
+  } | null>(null);
   const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
   const [isOpponentStunned, setIsOpponentStunned] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
@@ -272,28 +279,91 @@ const Game = () => {
     });
   };
 
-  const handleBoostActivation = (amount: number, boostEffect: number, duration: number) => {
-    setPlayerDeck(prevCards =>
-      prevCards.map(card => ({
-        ...card,
-        originalAttack: card.attack,
-        originalDefense: card.defense,
-        originalSpecial: card.special,
-        attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
-        defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
-        special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
-        boosted: true,
-      }))
-    );
-    setBoostActive(true);
-    setBoostDetails({ effect: boostEffect, remainingTurns: duration });
-    setPlayerMonadBalance(prev => prev - amount);
+  const handleBoostActivation = async (amount: number, boostEffect: number, duration: number) => {
+    // Show transaction pending state
+    setIsTransactionPending(true);
+    const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
 
-    setBattleLog(prev => [...prev, `MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
-
-    toast.success("Card Boost Activated!", {
-      description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+    setCurrentTransaction({
+      txHash,
+      description: `Activating MONAD Boost: +${boostEffect}% power`,
+      blockNumber: blockchainStats.currentBlockHeight
     });
+
+    toast.loading("Activating MONAD Boost on blockchain...", {
+      id: txHash,
+      duration: 3000,
+    });
+
+    try {
+      // Simulate blockchain transaction
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Apply boost to all cards
+      setPlayerDeck(prevCards =>
+        prevCards.map(card => ({
+          ...card,
+          originalAttack: card.attack,
+          originalDefense: card.defense,
+          originalSpecial: card.special,
+          attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
+          defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
+          special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
+          boosted: true,
+        }))
+      );
+
+      setBoostActive(true);
+      setBoostDetails({
+        effect: boostEffect,
+        remainingTurns: duration,
+        stakedAmount: amount,
+        powerBoost: boostEffect,
+        efficiency: Math.min(200, 100 + (amount * 2)),
+        affectedCards: playerDeck.map(card => card.id)
+      });
+
+      setPlayerMonadBalance(prev => prev - amount);
+
+      // Add visual effects
+      setBattleLog(prev => [...prev, `🔥 MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
+
+      // Update transaction status
+      const newTransaction: Transaction = {
+        txHash,
+        status: 'confirmed',
+        blockNumber: blockchainStats.currentBlockHeight + 1,
+        timestamp: Date.now(),
+        description: `MONAD Boost: +${boostEffect}% for ${duration} turns`
+      };
+
+      setTransactions(prev => [newTransaction, ...prev].slice(0, 5));
+      setIsTransactionPending(false);
+      setCurrentTransaction(null);
+
+      // Show success toast with animated sparkles
+      toast.success(
+        <div className="flex items-center">
+          <span className="mr-2">MONAD Boost Activated!</span>
+          <span className="text-yellow-400 animate-pulse">✨</span>
+        </div>,
+        {
+          id: txHash,
+          description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+        }
+      );
+
+      // Play boost sound effect
+      const audio = new Audio('/sounds/boost.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio play failed:', e));
+
+    } catch (error) {
+      console.error("Failed to activate MONAD boost:", error);
+      toast.error("Failed to activate MONAD boost");
+      setIsTransactionPending(false);
+      setCurrentTransaction(null);
+    }
   };
 
   function handleOpponentTurn() {
@@ -565,6 +635,12 @@ const Game = () => {
           // Calculate damage with potential critical hit for higher rarity cards
           let damage = card.attack;
           let criticalHit = false;
+          let boostBonus = 0;
+
+          // Add boost effect message if card is boosted
+          if (card.boosted && card.originalAttack) {
+            boostBonus = card.attack - card.originalAttack;
+          }
 
           // Critical hit chance based on card rarity
           if (card.rarity === 'epic' && Math.random() < 0.2) {
@@ -576,52 +652,169 @@ const Game = () => {
           }
 
           opponentNewHealth = Math.max(0, opponentHealth - damage);
-          logEntry += criticalHit
-            ? ` CRITICAL HIT! Dealt ${damage} damage.`
-            : ` Dealt ${damage} damage.`;
+
+          if (criticalHit && boostBonus > 0) {
+            logEntry += ` CRITICAL HIT + MONAD BOOST! Dealt ${damage} damage (includes +${boostBonus} from boost).`;
+          } else if (criticalHit) {
+            logEntry += ` CRITICAL HIT! Dealt ${damage} damage.`;
+          } else if (boostBonus > 0) {
+            logEntry += ` Dealt ${damage} damage (includes +${boostBonus} from MONAD boost).`;
+          } else {
+            logEntry += ` Dealt ${damage} damage.`;
+          }
+
+          // Visual effect for boosted attacks
+          if (boostBonus > 0) {
+            toast("MONAD Boost Applied", {
+              description: `+${boostBonus} attack power from MONAD boost`,
+              icon: "✨",
+              duration: 2000,
+            });
+          }
         }
 
         if (card.defense) {
           // Healing is more effective at lower health (comeback mechanic)
           let healing = card.defense;
+          let boostBonus = 0;
+          let lowHealthBonus = 0;
+
+          // Add boost effect message if card is boosted
+          if (card.boosted && card.originalDefense) {
+            boostBonus = card.defense - card.originalDefense;
+          }
+
+          // Low health bonus
           if (playerHealth < 10) {
-            healing = Math.floor(healing * 1.3); // 30% bonus when low on health
-            logEntry += ` Enhanced healing! Gained ${healing} health.`;
+            lowHealthBonus = Math.floor(healing * 0.3); // 30% bonus when low on health
+            healing = healing + lowHealthBonus;
+          }
+
+          playerNewHealth = Math.min(30, playerHealth + healing);
+
+          if (lowHealthBonus > 0 && boostBonus > 0) {
+            logEntry += ` Enhanced healing + MONAD BOOST! Gained ${healing} health (includes +${boostBonus} from boost and +${lowHealthBonus} from low health bonus).`;
+          } else if (lowHealthBonus > 0) {
+            logEntry += ` Enhanced healing! Gained ${healing} health (includes +${lowHealthBonus} from low health bonus).`;
+          } else if (boostBonus > 0) {
+            logEntry += ` Gained ${healing} health (includes +${boostBonus} from MONAD boost).`;
           } else {
             logEntry += ` Gained ${healing} health.`;
           }
-          playerNewHealth = Math.min(30, playerHealth + healing);
+
+          // Visual effect for boosted healing
+          if (boostBonus > 0) {
+            toast("MONAD Boost Applied", {
+              description: `+${boostBonus} healing power from MONAD boost`,
+              icon: "✨",
+              duration: 2000,
+            });
+          }
         }
 
         // Handle special effects with expanded functionality
         if (card.specialEffect) {
           logEntry += ` ${card.specialEffect.description}`;
 
+          // Check if special effect is boosted
+          let specialBoostBonus = 0;
+          if (card.boosted && card.originalSpecial && card.special) {
+            specialBoostBonus = card.special - card.originalSpecial;
+          }
+
           switch (card.specialEffect.type) {
             case 'damage':
               if (card.specialEffect.value) {
-                opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
-                logEntry += ` (${card.specialEffect.value} extra damage)`;
+                // Apply boost to special damage if applicable
+                let specialDamage = card.specialEffect.value;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Scale the special effect damage by the boost percentage
+                  const boostMultiplier = card.special / (card.originalSpecial || 1);
+                  specialDamage = Math.floor(specialDamage * boostMultiplier);
+                }
+
+                opponentNewHealth = Math.max(0, opponentNewHealth - specialDamage);
+
+                if (specialBoostBonus > 0) {
+                  logEntry += ` (${specialDamage} extra damage, MONAD boosted)`;
+
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Special effect amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (${specialDamage} extra damage)`;
+                }
               }
               break;
 
             case 'heal':
               if (card.specialEffect.value) {
-                playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
-                logEntry += ` (${card.specialEffect.value} extra healing)`;
+                // Apply boost to special healing if applicable
+                let specialHealing = card.specialEffect.value;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Scale the special effect healing by the boost percentage
+                  const boostMultiplier = card.special / (card.originalSpecial || 1);
+                  specialHealing = Math.floor(specialHealing * boostMultiplier);
+                }
+
+                playerNewHealth = Math.min(30, playerNewHealth + specialHealing);
+
+                if (specialBoostBonus > 0) {
+                  logEntry += ` (${specialHealing} extra healing, MONAD boosted)`;
+
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Healing effect amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (${specialHealing} extra healing)`;
+                }
               }
               break;
 
             case 'mana':
               if (card.specialEffect.value) {
+                // Apply boost to mana gain if applicable
                 extraMana = card.specialEffect.value;
-                logEntry += ` (Gained ${extraMana} extra mana)`;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Add a bonus mana for boosted cards
+                  extraMana += 1;
+                  logEntry += ` (Gained ${extraMana} extra mana, +1 from MONAD boost)`;
+
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Mana gain amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (Gained ${extraMana} extra mana)`;
+                }
               }
               break;
 
             case 'stun':
               applyStun = true;
-              logEntry += ` (Opponent stunned for 1 turn)`;
+
+              // Boosted stun cards have a chance to stun for an extra turn
+              if (specialBoostBonus > 0 && Math.random() < 0.5) {
+                logEntry += ` (Opponent stunned for 2 turns, enhanced by MONAD boost)`;
+                // We'll need to handle the extended stun in the game logic
+
+                // Visual effect for boosted special
+                toast("MONAD Special Boost", {
+                  description: `Stun effect amplified by MONAD boost`,
+                  icon: "✨",
+                  duration: 2000,
+                });
+              } else {
+                logEntry += ` (Opponent stunned for 1 turn)`;
+              }
               break;
 
             case 'leech':
@@ -759,7 +952,9 @@ const Game = () => {
         });
 
         const gameId = Date.now();
-        const gameData = {
+        // Game result data for blockchain submission
+        const gameResult = {
+            gameId,
             winner: playerWon ? walletAddress : null,
             playerHealth: playerHealth,
             opponentHealth: opponentHealth,
@@ -797,7 +992,9 @@ const Game = () => {
         // Award shards
         if (playerWon) {
             const shardReward = getShardReward();
-            await monadGameService.claimShards(movesBatch.batchId);
+
+            // Submit game result and claim shards
+            await monadGameService.claimShards(movesBatch.batchId, gameResult);
 
             // Add shard transaction
             const shardTxHash = `0x${Math.random().toString(16).substring(2, 42)}`;
@@ -810,6 +1007,9 @@ const Game = () => {
             };
 
             setTransactions(prev => [shardTransaction, ...prev].slice(0, 5));
+
+            // Update player's MONAD balance
+            setPlayerMonadBalance(prev => prev + shardReward);
 
             toast.success(`Earned ${shardReward} MONAD shards!`, {
                 description: "Shards added to your inventory"

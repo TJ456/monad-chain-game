@@ -5,6 +5,7 @@ import { Card as GameCardType, CardRarity, CardType } from "@/types/game";
 import { cn } from "@/lib/utils";
 import { generateCardImage } from '@/utils/placeholderImages';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sparkles } from 'lucide-react';
 
 interface GameCardProps {
   card: GameCardType;
@@ -61,16 +62,39 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
       className={cn(
         "relative overflow-hidden w-56 h-80 transition-all duration-300 cursor-pointer card-hover",
         rarityStyles[card.rarity],
+        card.boosted ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-400/20" : "",
         className
       )}
       onClick={onClick}
     >
+      {card.boosted && (
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400/20 to-purple-500/20 animate-pulse rounded-lg z-0"></div>
+      )}
       <div className="absolute inset-0.5 bg-black rounded-sm z-0" />
 
       <div className="relative z-10 h-full flex flex-col p-3">
         {/* Card Header */}
         <div className="flex justify-between items-center mb-2">
-          <div className="text-lg font-bold text-white truncate">{card.name}</div>
+          <div className="flex items-center">
+            <div className="text-lg font-bold text-white truncate">{card.name}</div>
+            {card.boosted && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-yellow-500/30">
+                      <Sparkles className="h-3 w-3 text-yellow-400" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-black/80 border-yellow-500/50">
+                    <div className="text-xs">
+                      <span className="text-yellow-400 font-bold">MONAD Boosted</span>
+                      <div className="text-gray-300 mt-1">This card's power has been amplified by MONAD tokens</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <div className="flex items-center justify-center h-6 w-6 rounded-full bg-black/40 backdrop-blur-sm">
             {typeIcons[card.type]}
           </div>
@@ -104,14 +128,26 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
               {card.attack && (
                 <div className="flex items-center space-x-1">
                   <span className="text-xs text-red-300">ATK:</span>
-                  <span className="text-sm font-semibold text-red-400">{card.attack}</span>
+                  <span className="text-sm font-semibold text-red-400">
+                    {card.attack}
+                    {card.boosted && card.originalAttack && (
+                      <span className="text-green-400 text-xs ml-1">+{card.attack - card.originalAttack}</span>
+                    )}
+                  </span>
+                  {card.boosted && <Sparkles className="h-3 w-3 text-yellow-400 ml-1 animate-pulse" />}
                 </div>
               )}
 
               {card.defense && (
                 <div className="flex items-center space-x-1">
                   <span className="text-xs text-green-300">DEF:</span>
-                  <span className="text-sm font-semibold text-green-400">{card.defense}</span>
+                  <span className="text-sm font-semibold text-green-400">
+                    {card.defense}
+                    {card.boosted && card.originalDefense && (
+                      <span className="text-green-400 text-xs ml-1">+{card.defense - card.originalDefense}</span>
+                    )}
+                  </span>
+                  {card.boosted && <Sparkles className="h-3 w-3 text-yellow-400 ml-1 animate-pulse" />}
                 </div>
               )}
             </div>
