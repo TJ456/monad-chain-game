@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +8,7 @@ import Game from "./pages/Game";
 import Marketplace from "./pages/Marketplace";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
+import Tournament from "./pages/Tournament";
 import NotFound from "./pages/NotFound";
 import "./App.css";
 
@@ -22,6 +22,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/game" element={<Game />} />
           <Route path="/marketplace" element={<Marketplace />} />
+          <Route path="/tournament" element={<Tournament />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

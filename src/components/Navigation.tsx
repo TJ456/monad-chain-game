@@ -116,6 +116,9 @@ const Navigation: React.FC = () => {
             <Link to="/game" className="text-white hover:text-mondo-blue transition-colors">
               Play Game
             </Link>
+            <Link to="/tournament" className="text-white hover:text-mondo-blue transition-colors">
+              Tournaments
+            </Link>
             <Link to="/marketplace" className="text-white hover:text-mondo-blue transition-colors">
               Marketplace
             </Link>

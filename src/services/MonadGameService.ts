@@ -185,6 +185,112 @@ export class MonadGameService {
     );
     await tx.wait();
   }
+
+  async createTournament(entryFee: number, duration: number, minLevel: number): Promise<void> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    const tx = await this.monadGameContract?.createTournament(
+      entryFee,
+      duration,
+      minLevel
+    );
+    await tx.wait();
+  }
+
+  async joinTournament(tournamentId: number): Promise<void> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    const tx = await this.monadGameContract?.joinTournament(tournamentId);
+    await tx.wait();
+  }
+
+  async getTournamentInfo(tournamentId: number): Promise<any> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    return await this.monadGameContract?.tournaments(tournamentId);
+  }
+
+  async getAllActiveTournaments(): Promise<any[]> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    const tournamentCount = await this.monadGameContract?.getTournamentCount();
+    const activeTournaments = [];
+
+    for (let i = 0; i < tournamentCount; i++) {
+      const tournament = await this.getTournamentInfo(i);
+      if (tournament.active) {
+        activeTournaments.push(tournament);
+      }
+    }
+
+    return activeTournaments;
+  }
+
+  async endTournament(tournamentId: number): Promise<void> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    const tx = await this.monadGameContract?.endTournament(tournamentId);
+    await tx.wait();
+  }
+
+  async getTournamentParticipants(tournamentId: number): Promise<string[]> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    return await this.monadGameContract?.getTournamentParticipants(tournamentId);
+  }
+
+  async getTournamentCount(): Promise<number> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    return await this.monadGameContract?.getTournamentCount();
+  }
+
+  async verifyTournamentGames(tournamentId: number): Promise<boolean> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    return await this.monadGameContract?.verifyTournamentGames(tournamentId);
+  }
+
+  async getTournamentStatus(tournamentId: number): Promise<{
+    isActive: boolean;
+    isVerified: boolean;
+    canComplete: boolean;
+    participantCount: number;
+    prizePool: number;
+    winner?: string;
+  }> {
+    const [tournament, isVerified] = await Promise.all([
+      this.getTournamentInfo(tournamentId),
+      this.verifyTournamentGames(tournamentId)
+    ]);
+
+    const participants = await this.getTournamentParticipants(tournamentId);
+    
+    return {
+      isActive: tournament.active,
+      isVerified,
+      canComplete: tournament.active && Date.now()/1000 >= tournament.endTime && isVerified,
+      participantCount: participants.length,
+      prizePool: tournament.prizePool,
+      winner: tournament.winner
+    };
+  }
 }
 
 export const monadGameService = new MonadGameService();

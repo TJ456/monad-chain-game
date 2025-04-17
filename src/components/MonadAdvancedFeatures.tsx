@@ -45,6 +45,7 @@ const mockGovernanceProposals: GovernanceProposal[] = [
 
 const mockBatches: MovesBatch[] = [
   {
+    gameId: 1,
     batchId: 'batch-1',
     moves: new Array(12).fill(null),
     stateRoot: '0x8d72...',
