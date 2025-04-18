@@ -42,7 +42,7 @@ const Navigation: React.FC = () => {
       const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
       const requiredNetworkName = import.meta.env.VITE_NETWORK_NAME;
       const currentNetwork = await provider.getNetwork();
-      
+
       if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
         // Show network switch dialog
         try {
@@ -107,7 +107,7 @@ const Navigation: React.FC = () => {
           <div className="flex items-center space-x-1">
             <div className="h-8 w-8 rounded-full bg-mondo-purple animate-pulse-ring"></div>
             <Link to="/" className="text-2xl font-bold text-white">
-              MONDO<span className="text-mondo-blue">Chain</span>Games
+              MONAD<span className="text-mondo-blue"><b>Chain-Games</b></span>
             </Link>
           </div>
 

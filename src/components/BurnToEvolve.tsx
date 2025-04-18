@@ -15,7 +15,7 @@ const BurnToEvolve: React.FC = () => {
   const [selectedCards, setSelectedCards] = useState<GameCardType[]>([]);
   const [playerDeck, setPlayerDeck] = useState<GameCardType[]>(currentPlayer.cards);
   const [playerMonad, setPlayerMonad] = useState(currentPlayer.monad);
-  
+
   // Generate potential evolve results based on selected cards
   const getPotentialResult = (): GameCardType => {
     // Base evolved card template
@@ -36,7 +36,7 @@ const BurnToEvolve: React.FC = () => {
         battleHistory: []
       }
     };
-    
+
     // Customize evolved card based on selected cards
     if (selectedCards.length === 2) {
       const totalAttack = selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0);
@@ -44,12 +44,12 @@ const BurnToEvolve: React.FC = () => {
       const avgMana = selectedCards.reduce((sum, card) => sum + card.mana, 0) / 2;
       const isRare = selectedCards.some(card => card.rarity === CardRarity.RARE);
       const isEpic = selectedCards.some(card => card.rarity === CardRarity.EPIC);
-      
+
       // Calculate new stats based on input cards
       baseEvolved.attack = Math.round(totalAttack * 1.5);
       baseEvolved.defense = Math.round(totalDefense * 1.5) || undefined;
       baseEvolved.mana = Math.round(avgMana * 1.2);
-      
+
       // Determine rarity based on input cards
       if (isEpic || (isRare && totalAttack > 10)) {
         baseEvolved.rarity = CardRarity.EPIC;
@@ -57,7 +57,7 @@ const BurnToEvolve: React.FC = () => {
       } else if (isRare) {
         baseEvolved.name = "Flame Colossus";
       }
-      
+
       // Add special effect for higher rarity cards
       if (baseEvolved.rarity === CardRarity.EPIC) {
         baseEvolved.specialEffect = {
@@ -66,10 +66,10 @@ const BurnToEvolve: React.FC = () => {
         };
       }
     }
-    
+
     return baseEvolved;
   };
-  
+
   const handleCardSelect = (card: GameCardType) => {
     if (selectedCards.find(c => c.id === card.id)) {
       setSelectedCards(selectedCards.filter(c => c.id !== card.id));
@@ -79,58 +79,58 @@ const BurnToEvolve: React.FC = () => {
       toast.warning("You can only select 2 cards to burn");
     }
   };
-  
+
   const handleBurn = () => {
     if (selectedCards.length < 2) {
       toast.error("Select 2 cards to burn");
       return;
     }
-    
+
     setIsProcessing(true);
-    
+
     toast.loading("Burning cards on Monad blockchain...", {
       id: "burn-evolve"
     });
-    
+
     setTimeout(() => {
       toast.success("Cards burned successfully!", {
         id: "burn-evolve",
         description: "Creating new evolved card..."
       });
-      
+
       // Remove selected cards from deck
-      setPlayerDeck(playerDeck.filter(card => 
+      setPlayerDeck(playerDeck.filter(card =>
         !selectedCards.some(selected => selected.id === card.id)
       ));
-      
+
       // Deduct MONAD cost
       setPlayerMonad(prev => prev - 5);
-      
+
       setTimeout(() => {
         setStep(2);
         setIsProcessing(false);
       }, 1000);
     }, 2000);
   };
-  
+
   const handleClaim = () => {
     setIsProcessing(true);
-    
+
     toast.loading("Minting new card on Monad blockchain...", {
       id: "claim-evolve"
     });
-    
+
     setTimeout(() => {
       const evolvedCard = getPotentialResult();
-      
+
       // Add evolved card to deck
       setPlayerDeck(prev => [...prev, evolvedCard]);
-      
+
       toast.success("New card claimed!", {
         id: "claim-evolve",
         description: `${evolvedCard.name} added to your collection`
       });
-      
+
       setStep(3);
       setIsProcessing(false);
     }, 2000);
@@ -140,7 +140,7 @@ const BurnToEvolve: React.FC = () => {
     setSelectedCards([]);
     setStep(1);
   };
-  
+
   // Sample cards for the demo tab
   const sampleCard1: GameCardType = {
     id: "burn-1",
@@ -167,9 +167,9 @@ const BurnToEvolve: React.FC = () => {
   };
 
   const evolvedCard = getPotentialResult();
-  
+
   return (
-    <Card className="glassmorphism border-orange-500/30 p-6">
+    <Card className="glassmorphism border-orange-500/30 p-6 relative">
       <div className="flex items-center space-x-4 mb-6">
         <div className="h-10 w-10 rounded-full bg-orange-500/30 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -183,27 +183,27 @@ const BurnToEvolve: React.FC = () => {
         </div>
         <Badge className="ml-auto bg-orange-600 text-white">Deflationary</Badge>
       </div>
-      
+
       {step === 1 && (
         <>
           <div className="text-center mb-6">
             <h4 className="text-white font-medium">Select Cards to Burn</h4>
             <p className="text-sm text-gray-400">Sacrifice two cards to mint a more powerful one</p>
           </div>
-          
+
           <Tabs defaultValue="your-cards" className="mb-6">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="your-cards">Your Cards</TabsTrigger>
               <TabsTrigger value="example">Example</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="your-cards" className="mt-4">
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {playerDeck.map((card) => (
-                  <div 
-                    key={card.id} 
+                  <div
+                    key={card.id}
                     onClick={() => handleCardSelect(card)}
-                    className={`cursor-pointer transition-all ${selectedCards.some(c => c.id === card.id) ? 
+                    className={`cursor-pointer transition-all ${selectedCards.some(c => c.id === card.id) ?
                       'ring-2 ring-orange-500 scale-105' : 'opacity-80 hover:opacity-100'}`}
                   >
                     <GameCard card={card} showDetails={false} />
@@ -213,15 +213,15 @@ const BurnToEvolve: React.FC = () => {
                   </div>
                 ))}
               </div>
-              
+
               <div className="flex justify-center space-x-4 mt-4">
                 {selectedCards.map((card) => (
                   <div key={card.id}>
                     <GameCard card={card} showDetails={false} />
                     <div className="mt-2 text-center">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleCardSelect(card)}
                         className="text-xs text-red-400 border-red-400/50"
                       >
@@ -230,7 +230,7 @@ const BurnToEvolve: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                
+
                 {selectedCards.length === 1 && (
                   <div className="flex items-center">
                     <span className="text-orange-400 text-2xl">+</span>
@@ -239,7 +239,7 @@ const BurnToEvolve: React.FC = () => {
                     </div>
                   </div>
                 )}
-                
+
                 {selectedCards.length === 0 && (
                   <div className="text-center text-orange-400/70 text-sm">
                     Select two cards to burn
@@ -247,7 +247,7 @@ const BurnToEvolve: React.FC = () => {
                 )}
               </div>
             </TabsContent>
-            
+
             <TabsContent value="example" className="mt-4">
               <div className="flex justify-center space-x-6">
                 <div>
@@ -256,11 +256,11 @@ const BurnToEvolve: React.FC = () => {
                     <span className="text-sm text-gray-400">Common</span>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center">
                   <span className="text-orange-400 text-2xl">+</span>
                 </div>
-                
+
                 <div>
                   <GameCard card={sampleCard2} showDetails={false} />
                   <div className="mt-2 text-center">
@@ -270,7 +270,7 @@ const BurnToEvolve: React.FC = () => {
               </div>
             </TabsContent>
           </Tabs>
-          
+
           <div className="bg-black/30 p-4 rounded-lg border border-orange-500/20 mb-6">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-gray-400">Success Rate</span>
@@ -281,12 +281,12 @@ const BurnToEvolve: React.FC = () => {
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">New Card Rarity</span>
               <span className={`font-bold ${
-                selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'text-purple-400' : 
-                selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'text-blue-400' : 
+                selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'text-purple-400' :
+                selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'text-blue-400' :
                 'text-gray-400'
               }`}>
-                {selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'Epic' : 
-                 selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'Rare' : 
+                {selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'Epic' :
+                 selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'Rare' :
                  'Common'}
               </span>
             </div>
@@ -295,39 +295,39 @@ const BurnToEvolve: React.FC = () => {
               <span className="text-orange-400 font-bold">5 MONAD</span>
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             className="w-full bg-gradient-to-r from-orange-600 to-red-600"
             onClick={handleBurn}
             disabled={isProcessing || selectedCards.length < 2 || playerMonad < 5}
           >
-            {isProcessing ? "Processing..." : 
+            {isProcessing ? "Processing..." :
              selectedCards.length < 2 ? "Select 2 Cards" :
              playerMonad < 5 ? "Need 5 MONAD" :
              "Burn Cards"}
           </Button>
         </>
       )}
-      
+
       {step === 2 && (
         <>
           <div className="text-center mb-6">
             <h4 className="text-white font-medium">Evolution Complete!</h4>
             <p className="text-sm text-gray-400">Your new card has been forged from the flames</p>
           </div>
-          
+
           <div className="flex justify-center mb-6">
             <div className="transform hover:scale-105 transition-all duration-500">
               <GameCard card={evolvedCard} />
             </div>
           </div>
-          
+
           <div className="bg-black/30 p-4 rounded-lg border border-orange-500/20 mb-6">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-gray-400">Rarity</span>
               <span className={`font-bold ${
-                evolvedCard.rarity === CardRarity.EPIC ? 'text-purple-400' : 
-                evolvedCard.rarity === CardRarity.RARE ? 'text-blue-400' : 
+                evolvedCard.rarity === CardRarity.EPIC ? 'text-purple-400' :
+                evolvedCard.rarity === CardRarity.RARE ? 'text-blue-400' :
                 'text-gray-400'
               }`}>
                 {evolvedCard.rarity}
@@ -342,8 +342,8 @@ const BurnToEvolve: React.FC = () => {
               <span className="text-orange-400 font-bold">Yes</span>
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             className="w-full bg-gradient-to-r from-orange-600 to-red-600"
             onClick={handleClaim}
             disabled={isProcessing}
@@ -352,20 +352,20 @@ const BurnToEvolve: React.FC = () => {
           </Button>
         </>
       )}
-      
+
       {step === 3 && (
         <>
           <div className="text-center mb-6">
             <h4 className="text-white font-medium">Evolution Complete!</h4>
             <p className="text-sm text-gray-400">Card added to your collection</p>
           </div>
-          
+
           <div className="flex justify-center mb-6">
             <div className="animate-float">
               <GameCard card={evolvedCard} />
             </div>
           </div>
-          
+
           <div className="bg-black/30 p-4 rounded-lg border border-orange-500/20 mb-6">
             <div className="flex items-center">
               <div className="h-5 w-5 rounded-full bg-green-500/30 flex items-center justify-center mr-2">
@@ -379,8 +379,8 @@ const BurnToEvolve: React.FC = () => {
               Transaction: 0xf762d9e7f4a3e6b9b719e5c422f4c2afc580ef59...
             </div>
           </div>
-          
-          <Button 
+
+          <Button
             className="w-full bg-gradient-to-r from-orange-600 to-red-600"
             onClick={resetBurn}
           >
@@ -388,7 +388,7 @@ const BurnToEvolve: React.FC = () => {
           </Button>
         </>
       )}
-      
+
       <div className="mt-4 text-center text-xs text-gray-500">
         Powered by Monad's deflationary NFT mechanics
       </div>

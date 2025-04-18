@@ -11,6 +11,17 @@
   border: 1px solid rgba(255, 255, 255, 0.125);
 }
 
+/* Footer slide-up animation */
+footer {
+  z-index: 50;
+  box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.footer-spacer {
+  min-height: 10rem; /* Matches the approximate height of the footer */
+  margin-top: 2rem; /* Adds extra space between content and footer */
+}
+
 /* Shard animations */
 @keyframes shardGlow {
   0% {
