@@ -154,8 +154,28 @@ const Game = () => {
             setWalletConnected(true);
 
             // Check if player is registered
-            const playerData = await monadGameService.getPlayerData(address);
-            setIsRegistered(!!playerData);
+            try {
+                const playerData = await monadGameService.getPlayerData(address);
+                // If we get here without an error, the player is registered
+                console.log('Player data retrieved:', playerData);
+                setIsRegistered(true);
+            } catch (error) {
+                console.log('Player not registered yet:', error);
+                // For development purposes, we'll auto-register the player
+                // This makes testing easier
+                if (process.env.NODE_ENV === 'development') {
+                    try {
+                        console.log('Auto-registering player in development mode');
+                        await monadGameService.registerPlayer();
+                        setIsRegistered(true);
+                    } catch (regError) {
+                        console.error('Auto-registration failed:', regError);
+                        // Continue without registration
+                    }
+                } else {
+                    setIsRegistered(false);
+                }
+            }
 
             // Initialize WebSocket connection
             const wsService = WebSocketService.getInstance();
@@ -1233,17 +1253,38 @@ const Game = () => {
                 <p className="text-gray-400 mb-6">Register your wallet to start playing Monad Chain Game</p>
                 <Button
                     onClick={async () => {
+                        // Disable the button to prevent multiple clicks
+                        const button = document.activeElement as HTMLButtonElement;
+                        if (button) button.disabled = true;
+
+                        const toastId = "register-player-toast";
+                        toast.loading("Registering player on Monad blockchain...", { id: toastId });
+
                         try {
-                            toast.loading("Registering player on Monad blockchain...");
+                            // Call the service to register the player
+                            // The service now has built-in timeout handling
                             await monadGameService.registerPlayer();
+
+                            // Registration successful
+                            toast.success("Successfully registered!", {
+                                id: toastId,
+                                description: "Welcome to Monad Chain Game"
+                            });
+
+                            // Update the UI state
                             setIsRegistered(true);
-                            toast.success("Successfully registered! Welcome to Monad Chain Game");
                         } catch (error: any) {
                             console.error("Registration failed:", error);
+
+                            // If there was an error, show it to the user
                             const errorMessage = error.message || "Failed to register. Please try again.";
                             toast.error("Registration failed", {
+                                id: toastId,
                                 description: errorMessage
                             });
+
+                            // Re-enable the button
+                            if (button) button.disabled = false;
                         }
                     }}
                     className="bg-gradient-to-r from-emerald-400 to-teal-500"
