@@ -5,6 +5,5 @@
   "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
     { "source": "/(.*)", "destination": "/" }
-  ],
-  "nodeVersion": "18.x"
+  ]
 }
