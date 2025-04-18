@@ -265,6 +265,8 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
     function createTournament(uint256 startTime, uint256 duration, uint256 minLevel) external payable {
         require(msg.value >= MIN_TOURNAMENT_PRIZE, "Prize pool too small");
         require(startTime > block.timestamp, "Invalid start time");
+        require(duration >= 3600, "Duration too short"); // Minimum 1 hour
+        require(duration <= 604800, "Duration too long"); // Maximum 1 week
 
         uint256 tournamentId = _tournamentIds.current();
         tournaments[tournamentId] = Tournament({
@@ -289,8 +291,94 @@ contract MonadGame is ERC721, ReentrancyGuard, Ownable {
         require(block.timestamp < tournament.startTime, "Tournament already started");
         require(msg.value >= tournament.entryFee, "Insufficient entry fee");
         require(players[msg.sender].level >= tournament.minLevel, "Level too low");
+        
+        // Anti-cheat: Check if player hasn't already joined
+        for(uint i = 0; i < tournament.participants.length; i++) {
+            require(tournament.participants[i] != msg.sender, "Already joined");
+        }
+
+        // Anti-cheat: Ensure player has valid cards
+        require(players[msg.sender].ownedCards.length >= 3, "Not enough cards");
 
         tournament.participants.push(msg.sender);
+    }
+
+    function endTournament(uint256 tournamentId) external {
+        Tournament storage tournament = tournaments[tournamentId];
+        require(tournament.isActive, "Tournament not active");
+        require(block.timestamp >= tournament.endTime, "Tournament still in progress");
+        require(tournament.participants.length > 0, "No participants");
+
+        // Anti-cheat: Track wins only during tournament period
+        address winner = tournament.participants[0];
+        uint256 maxWins = 0;
+
+        for (uint256 i = 0; i < tournament.participants.length; i++) {
+            address participant = tournament.participants[i];
+            uint256 participantWins = 0;
+            
+            // Count wins only from tournament games
+            GameMove[] storage moves = gameMoves[playerCurrentGame[participant]];
+            for (uint256 j = 0; j < moves.length; j++) {
+                if (moves[j].timestamp >= tournament.startTime && 
+                    moves[j].timestamp <= tournament.endTime &&
+                    moves[j].verified) {
+                    participantWins++;
+                }
+            }
+
+            if (participantWins > maxWins) {
+                winner = participant;
+                maxWins = participantWins;
+            }
+        }
+
+        require(maxWins > 0, "No valid wins recorded");
+
+        tournament.winner = winner;
+        tournament.isActive = false;
+
+        // Award prize pool to winner
+        payable(winner).transfer(tournament.prizePool);
+
+        // Award bonus shards and experience
+        _awardShards(winner, 10);
+        _awardExperience(winner, 500);
+
+        emit TournamentWinner(tournamentId, winner, tournament.prizePool);
+    }
+
+    // Added tournament verification
+    function verifyTournamentGames(uint256 tournamentId) external view returns (bool) {
+        Tournament storage tournament = tournaments[tournamentId];
+        
+        for (uint256 i = 0; i < tournament.participants.length; i++) {
+            address participant = tournament.participants[i];
+            uint256 gameId = playerCurrentGame[participant];
+            
+            if (gameId != 0) {
+                GameMove[] storage moves = gameMoves[gameId];
+                for (uint256 j = 0; j < moves.length; j++) {
+                    if (moves[j].timestamp >= tournament.startTime && 
+                        moves[j].timestamp <= tournament.endTime) {
+                        if (!moves[j].verified) {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Get tournament participants
+    function getTournamentParticipants(uint256 tournamentId) external view returns (address[] memory) {
+        return tournaments[tournamentId].participants;
+    }
+
+    // Get tournament count
+    function getTournamentCount() external view returns (uint256) {
+        return _tournamentIds.current();
     }
 
     // Internal functions

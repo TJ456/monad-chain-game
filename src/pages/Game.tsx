@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/Navigation';
 import { Card as UICard } from "@/components/ui/card";
 import GameCard from '@/components/GameCard';
@@ -6,14 +6,24 @@ import MonadStatus from '@/components/MonadStatus';
 import ShardManager from '@/components/ShardManager';
 import MonadBoostMechanic from '@/components/MonadBoostMechanic';
 import GameRoomSelector from '@/components/GameRoomSelector';
+import GameModeMenu from '@/components/GameModeMenu';
+import GameRoomManager from '@/components/GameRoomManager';
+import TurnTimer from '@/components/TurnTimer';
+import GameSyncStatus from '@/components/GameSyncStatus';
+import TransactionConfirmation from '@/components/TransactionConfirmation';
+import GameTransactionOverlay from '@/components/GameTransactionOverlay';
 import PlayerInventory from '@/components/PlayerInventory';
+import BlockchainTransactionInfo, { Transaction } from '@/components/BlockchainTransactionInfo';
+import TransactionLoader from '@/components/TransactionLoader';
+import WebSocketService, { WebSocketMessageType } from '@/services/WebSocketService';
+import GameSyncService, { GameState, ConflictResolutionStrategy } from '@/services/GameSyncService';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { toast } from "sonner";
 import { cards, currentPlayer, monadGameState } from '@/data/gameData';
-import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType } from '@/types/game';
+import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType, MovesBatch, GameMode, GameRoom } from '@/types/game';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Package, Shield, Sword, Zap } from 'lucide-react';
+import { Package, Shield, Sword, Zap, ExternalLink } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
 import { monadGameService } from '@/services/MonadGameService';
 
@@ -27,7 +37,20 @@ const Game = () => {
   const [playerDeck, setPlayerDeck] = useState<GameCardType[]>(currentPlayer.cards);
   const [opponentCards, setOpponentCards] = useState<GameCardType[]>([]);
   const [selectedCard, setSelectedCard] = useState<GameCardType | null>(null);
-  const [gameStatus, setGameStatus] = useState<'room_select' | 'inventory' | 'waiting' | 'playing' | 'end'>('room_select');
+  const [gameMode, setGameMode] = useState<GameMode | null>(null);
+  const [gameStatus, setGameStatus] = useState<'mode_select' | 'room_select' | 'gameroom' | 'inventory' | 'waiting' | 'playing' | 'end'>('mode_select');
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+
+  // WebSocket and sync state
+  const [wsConnected, setWsConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
+  const [transactionDetails, setTransactionDetails] = useState<{
+    hash: string;
+    status: 'pending' | 'confirmed' | 'failed';
+    blockNumber?: number;
+    timestamp: number;
+  } | null>(null);
   const [playerMana, setPlayerMana] = useState(10);
   const [opponentMana, setOpponentMana] = useState(10);
   const [playerHealth, setPlayerHealth] = useState(20);
@@ -47,9 +70,17 @@ const Game = () => {
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficultyTier>(AIDifficultyTier.NOVICE);
   const [playerMonadBalance, setPlayerMonadBalance] = useState(1000);
   const [boostActive, setBoostActive] = useState(false);
-  const [boostDetails, setBoostDetails] = useState<{effect: number, remainingTurns: number} | null>(null);
+  const [boostDetails, setBoostDetails] = useState<{
+    effect: number,
+    remainingTurns: number,
+    stakedAmount?: number,
+    powerBoost?: number,
+    efficiency?: number,
+    affectedCards?: string[]
+  } | null>(null);
   const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
   const [isOpponentStunned, setIsOpponentStunned] = useState(false);
+  const [turnTimeExpired, setTurnTimeExpired] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [isRegistered, setIsRegistered] = useState(false);
@@ -57,6 +88,19 @@ const Game = () => {
   const [consecutiveDefenseCount, setConsecutiveDefenseCount] = useState(0);
   const [aiComboCounter, setAiComboCounter] = useState(0);
   const [isPlayerStunned, setPlayerStunned] = useState(false);
+
+  // Blockchain transaction tracking
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isTransactionPending, setIsTransactionPending] = useState(false);
+  const [currentTransaction, setCurrentTransaction] = useState<{
+    txHash: string;
+    description: string;
+    blockNumber?: number;
+  } | null>(null);
+  const [blockchainStats, setBlockchainStats] = useState({
+    currentBlockHeight: monadGameState.currentBlockHeight || 0,
+    networkName: import.meta.env.VITE_NETWORK_NAME || 'Monad Testnet'
+  });
 
   useEffect(() => {
     const savedShards = localStorage.getItem(STORAGE_KEY_SHARDS);
@@ -104,12 +148,76 @@ const Game = () => {
   useEffect(() => {
     const initializeBlockchain = async () => {
         try {
+            // Connect wallet
             const address = await monadGameService.connectWallet();
             setWalletAddress(address);
             setWalletConnected(true);
 
-            const playerData = await monadGameService.getPlayerData(address);
-            setIsRegistered(!!playerData);
+            // Check if player is registered
+            try {
+                const playerData = await monadGameService.getPlayerData(address);
+                // If we get here without an error, the player is registered
+                console.log('Player data retrieved:', playerData);
+                setIsRegistered(true);
+            } catch (error) {
+                console.log('Player not registered yet:', error);
+                // For development purposes, we'll auto-register the player
+                // This makes testing easier
+                if (process.env.NODE_ENV === 'development') {
+                    try {
+                        console.log('Auto-registering player in development mode');
+                        await monadGameService.registerPlayer();
+                        setIsRegistered(true);
+                    } catch (regError) {
+                        console.error('Auto-registration failed:', regError);
+                        // Continue without registration
+                    }
+                } else {
+                    setIsRegistered(false);
+                }
+            }
+
+            // Initialize WebSocket connection
+            const wsService = WebSocketService.getInstance();
+            const syncService = GameSyncService.getInstance();
+
+            // Set up WebSocket connection listeners
+            wsService.addConnectionStatusListener((connected) => {
+              setWsConnected(connected);
+              if (connected) {
+                toast.success("Connected to game server", {
+                  description: "Real-time updates enabled"
+                });
+              } else {
+                toast.error("Disconnected from game server", {
+                  description: "Attempting to reconnect..."
+                });
+              }
+            });
+
+            // Set up sync status listeners
+            syncService.addSyncStatusListener((syncing) => {
+              setIsSyncing(syncing);
+            });
+
+            // Set up transaction update listeners
+            syncService.addTransactionUpdateListener((update) => {
+              setTransactionDetails({
+                hash: update.transactionHash,
+                status: update.status,
+                blockNumber: update.blockNumber,
+                timestamp: update.timestamp
+              });
+
+              if (update.status === 'confirmed') {
+                setShowTransactionConfirmation(true);
+                // Auto-hide after 5 seconds
+                setTimeout(() => setShowTransactionConfirmation(false), 5000);
+              }
+            });
+
+            // Connect to WebSocket server
+            wsService.connect(address || 'anonymous');
         } catch (error) {
             console.error("Blockchain initialization error:", error);
             toast.error("Failed to connect to blockchain");
@@ -117,11 +225,57 @@ const Game = () => {
     };
 
     initializeBlockchain();
+
+    // Clean up on unmount
+    return () => {
+      const wsService = WebSocketService.getInstance();
+      wsService.disconnect();
+    };
   }, []);
 
   const getPlayableCards = useCallback((cards: GameCardType[], mana: number) => {
     return cards.filter(card => card.mana <= mana);
   }, []);
+
+  const handleSelectGameMode = (mode: GameMode) => {
+    setGameMode(mode);
+
+    if (mode === GameMode.PRACTICE) {
+      setGameStatus('room_select');
+      toast.success("Practice Mode Selected", {
+        description: "Choose a difficulty level to practice against AI"
+      });
+    } else if (mode === GameMode.GAMEROOM) {
+      setGameStatus('gameroom');
+      toast.success("Game Room Mode Selected", {
+        description: "Create or join a room to play against a friend"
+      });
+    }
+  };
+
+  const handleRoomCreated = (room: GameRoom) => {
+    setCurrentRoom(room);
+    // Room creation is handled by the GameRoomManager component
+  };
+
+  const handleGameRoomStart = () => {
+    // When a game starts in game room mode
+    resetGame();
+    setGameStatus('playing');
+    setCurrentTurn('player');
+    setBattleLog(['1v1 Battle has begun on the MONAD blockchain! Your turn.']);
+
+    toast.success("Game Started", {
+      description: "The 1v1 battle has begun! Play your first card."
+    });
+  };
+
+  const backToModeSelection = () => {
+    setGameStatus('mode_select');
+    setGameMode(null);
+    setCurrentRoom(null);
+    setOpponentCards([]);
+  };
 
   useEffect(() => {
     if (gameStatus !== 'playing') return;
@@ -141,16 +295,20 @@ const Game = () => {
 
     let opponentCardPool: GameCardType[];
 
+    // Filter cards based on difficulty
     switch (difficulty) {
       case AIDifficultyTier.NOVICE:
+        // Novice only gets common and rare cards
         opponentCardPool = cards.filter(card => card.rarity !== 'epic' && card.rarity !== 'legendary');
         break;
 
       case AIDifficultyTier.VETERAN:
+        // Veteran gets everything except legendary cards
         opponentCardPool = cards.filter(card => card.rarity !== 'legendary');
         break;
 
       case AIDifficultyTier.LEGEND:
+        // Legend gets all cards
         opponentCardPool = [...cards];
         break;
 
@@ -158,6 +316,7 @@ const Game = () => {
         opponentCardPool = [...cards];
     }
 
+    // Apply difficulty-specific enhancements to the cards
     opponentCardPool = enhanceAICards(opponentCardPool, difficulty);
 
     const randomCards: GameCardType[] = [];
@@ -169,6 +328,7 @@ const Game = () => {
 
     setOpponentCards(randomCards);
 
+    // Instead of going to waiting screen, go to inventory for card selection
     setGameStatus('inventory');
 
     let difficultyName = '';
@@ -199,9 +359,11 @@ const Game = () => {
   };
 
   const closeInventory = () => {
+    // If we came from room selection, go back to room selection
     if (opponentCards.length === 0) {
       setGameStatus('room_select');
     } else {
+      // Otherwise go to waiting screen
       setGameStatus('waiting');
     }
   };
@@ -221,20 +383,22 @@ const Game = () => {
     setCurrentTurn('player');
     setBattleLog(['Battle has begun on the MONAD blockchain! Your turn.']);
 
-    let difficultyMessage = "";
-    switch (aiDifficulty) {
-      case AIDifficultyTier.NOVICE:
-        difficultyMessage = "Novice training battle begins. Perfect your strategy!";
-        break;
-      case AIDifficultyTier.VETERAN:
-        difficultyMessage = "Veteran AI activated. This opponent has advanced tactics!";
-        break;
-      case AIDifficultyTier.LEGEND:
-        difficultyMessage = "LEGENDARY AI ENGAGED! Prepare for the ultimate challenge!";
-        break;
-    }
+    if (gameMode === GameMode.PRACTICE) {
+      let difficultyMessage = "";
+      switch (aiDifficulty) {
+        case AIDifficultyTier.NOVICE:
+          difficultyMessage = "Novice training battle begins. Perfect your strategy!";
+          break;
+        case AIDifficultyTier.VETERAN:
+          difficultyMessage = "Veteran AI activated. This opponent has advanced tactics!";
+          break;
+        case AIDifficultyTier.LEGEND:
+          difficultyMessage = "LEGENDARY AI ENGAGED! Prepare for the ultimate challenge!";
+          break;
+      }
 
-    setBattleLog(prev => [...prev, difficultyMessage]);
+      setBattleLog(prev => [...prev, difficultyMessage]);
+    }
 
     uiToast({
       title: "Game Started",
@@ -247,80 +411,147 @@ const Game = () => {
     });
   };
 
-  const handleBoostActivation = (amount: number, boostEffect: number, duration: number) => {
-    setPlayerDeck(prevCards =>
-      prevCards.map(card => ({
-        ...card,
-        originalAttack: card.attack,
-        originalDefense: card.defense,
-        originalSpecial: card.special,
-        attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
-        defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
-        special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
-        boosted: true,
-      }))
-    );
-    setBoostActive(true);
-    setBoostDetails({ effect: boostEffect, remainingTurns: duration });
-    setPlayerMonadBalance(prev => prev - amount);
+  const handleBoostActivation = async (amount: number, boostEffect: number, duration: number) => {
+    // Show transaction pending state
+    setIsTransactionPending(true);
+    const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
 
-    setBattleLog(prev => [...prev, `MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
-
-    toast.success("Card Boost Activated!", {
-      description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+    setCurrentTransaction({
+      txHash,
+      description: `Activating MONAD Boost: +${boostEffect}% power`,
+      blockNumber: blockchainStats.currentBlockHeight
     });
+
+    toast.loading("Activating MONAD Boost on blockchain...", {
+      id: txHash,
+      duration: 3000,
+    });
+
+    try {
+      // Simulate blockchain transaction
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Apply boost to all cards
+      setPlayerDeck(prevCards =>
+        prevCards.map(card => ({
+          ...card,
+          originalAttack: card.attack,
+          originalDefense: card.defense,
+          originalSpecial: card.special,
+          attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
+          defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
+          special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
+          boosted: true,
+        }))
+      );
+
+      setBoostActive(true);
+      setBoostDetails({
+        effect: boostEffect,
+        remainingTurns: duration,
+        stakedAmount: amount,
+        powerBoost: boostEffect,
+        efficiency: Math.min(200, 100 + (amount * 2)),
+        affectedCards: playerDeck.map(card => card.id)
+      });
+
+      setPlayerMonadBalance(prev => prev - amount);
+
+      // Add visual effects
+      setBattleLog(prev => [...prev, `🔥 MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
+
+      // Update transaction status
+      const newTransaction: Transaction = {
+        txHash,
+        status: 'confirmed',
+        blockNumber: blockchainStats.currentBlockHeight + 1,
+        timestamp: Date.now(),
+        description: `MONAD Boost: +${boostEffect}% for ${duration} turns`
+      };
+
+      setTransactions(prev => [newTransaction, ...prev].slice(0, 5));
+      setIsTransactionPending(false);
+      setCurrentTransaction(null);
+
+      // Show success toast with animated sparkles
+      toast.success(
+        <div className="flex items-center">
+          <span className="mr-2">MONAD Boost Activated!</span>
+          <span className="text-yellow-400 animate-pulse">✨</span>
+        </div>,
+        {
+          id: txHash,
+          description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+        }
+      );
+
+      // Play boost sound effect
+      const audio = new Audio('/sounds/boost.mp3');
+      audio.volume = 0.5;
+      audio.play().catch(e => console.log('Audio play failed:', e));
+
+    } catch (error) {
+      console.error("Failed to activate MONAD boost:", error);
+      toast.error("Failed to activate MONAD boost");
+      setIsTransactionPending(false);
+      setCurrentTransaction(null);
+    }
   };
 
   function handleOpponentTurn() {
+    console.log("Executing AI turn...");
     if (gameStatus !== 'playing') return;
 
+    // Check if opponent is stunned
     if (isOpponentStunned) {
       setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
-      setIsOpponentStunned(false);
-      endTurn('player');
+      setIsOpponentStunned(false); // Reset stun after one turn
+      endTurn('player'); // Player gets another turn
       return;
     }
 
     const playableCards = opponentCards.filter(card => card.mana <= opponentMana);
+    console.log("AI playable cards:", playableCards);
 
     if (playableCards.length > 0) {
       let cardToPlay: GameCardType;
       let aiThinkingDelay = aiStrategies[aiDifficulty].thinkingTime;
 
+      // Add AI thinking message to battle log
       const thinkingMessage = getAIThinkingMessage(aiDifficulty);
       setBattleLog(prev => [...prev, thinkingMessage]);
 
+      // Select card based on difficulty
       switch (aiDifficulty) {
         case AIDifficultyTier.NOVICE:
+          // Novice AI uses random selection
           cardToPlay = selectCardNovice(playableCards, playerHealth, opponentHealth);
           break;
 
         case AIDifficultyTier.VETERAN:
-          cardToPlay = selectCardVeteran(
-            playableCards,
-            playerHealth,
-            opponentHealth,
-            opponentMana,
-            playerLastCards
-          );
+          // Veteran AI uses value-based selection
+          cardToPlay = selectCardVeteran(playableCards, playerHealth, opponentHealth, opponentMana);
           break;
 
         case AIDifficultyTier.LEGEND:
+          // Legend AI uses situational strategy
           cardToPlay = selectCardLegend(
             playableCards,
             playerHealth,
             opponentHealth,
             opponentMana,
             playerDeck,
-            playerLastCards[0]
+            selectedCard // Pass the player's last played card
           );
           break;
 
         default:
-          cardToPlay = playableCards[0];
+          cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
       }
 
       setTimeout(() => {
+        console.log("AI playing card:", cardToPlay);
+
         setOpponentMana(prev => prev - cardToPlay.mana);
         setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
 
@@ -329,56 +560,13 @@ const Game = () => {
         let logEntry = `Opponent played ${cardToPlay.name}.`;
 
         if (cardToPlay.attack) {
-          let attackBonus = 0;
-          if (aiDifficulty !== AIDifficultyTier.NOVICE && aiComboCounter > 0) {
-            attackBonus = Math.floor(cardToPlay.attack * (aiComboCounter * 0.1));
-            logEntry += ` Combo bonus: +${attackBonus} damage!`;
-          }
-
-          const totalDamage = cardToPlay.attack + attackBonus;
-          newPlayerHealth = Math.max(0, playerHealth - totalDamage);
-          logEntry += ` Dealt ${totalDamage} damage.`;
-
-          setAiComboCounter(prev => (cardToPlay.type === 'attack' ? prev + 1 : 0));
-        } else {
-          setAiComboCounter(0);
+          newPlayerHealth = Math.max(0, playerHealth - cardToPlay.attack);
+          logEntry += ` Dealt ${cardToPlay.attack} damage.`;
         }
 
         if (cardToPlay.defense) {
-          const defenseBonus = consecutiveDefenseCount * (aiDifficulty === AIDifficultyTier.LEGEND ? 0.2 : 0.1);
-          const totalHealing = Math.floor(cardToPlay.defense * (1 + defenseBonus));
-          newOpponentHealth = Math.min(20, opponentHealth + totalHealing);
-          logEntry += ` Gained ${totalHealing} health.`;
-          setConsecutiveDefenseCount(prev => prev + 1);
-        } else {
-          setConsecutiveDefenseCount(0);
-        }
-
-        if (cardToPlay.specialEffect) {
-          logEntry += ` ${cardToPlay.specialEffect.description}`;
-
-          switch (cardToPlay.specialEffect.type) {
-            case 'stun':
-              if (Math.random() < (aiDifficulty === AIDifficultyTier.LEGEND ? 0.4 : 0.3)) {
-                setPlayerStunned(true);
-                logEntry += " (Player stunned!)";
-              }
-              break;
-
-            case 'leech':
-              if (cardToPlay.attack && cardToPlay.specialEffect.value) {
-                const leechAmount = Math.floor(cardToPlay.attack * (cardToPlay.specialEffect.value / 100));
-                newOpponentHealth = Math.min(20, newOpponentHealth + leechAmount);
-                logEntry += ` (Leeched ${leechAmount} health)`;
-              }
-              break;
-
-            case 'mana':
-              const manaGain = cardToPlay.specialEffect.value || 1;
-              setOpponentMana(prev => Math.min(10, prev + manaGain));
-              logEntry += ` (Gained ${manaGain} mana)`;
-              break;
-          }
+          newOpponentHealth = Math.min(30, opponentHealth + cardToPlay.defense);
+          logEntry += ` Gained ${cardToPlay.defense} health.`;
         }
 
         setPlayerHealth(newPlayerHealth);
@@ -439,15 +627,16 @@ const Game = () => {
     setSelectedCard(null);
 
     if (nextPlayer === 'opponent') {
+      console.log("Triggering AI turn...");
       setTimeout(handleOpponentTurn, 1000);
     }
   }, [boostActive, boostDetails]);
 
   useEffect(() => {
-    if (gameStatus === 'playing' && currentTurn === 'opponent') {
+    if (gameStatus === 'playing' && currentTurn === 'opponent' && gameMode === GameMode.PRACTICE) {
       handleOpponentTurn();
     }
-  }, [currentTurn, gameStatus]);
+  }, [currentTurn, gameStatus, gameMode]);
 
   const handleNoPlayableCards = (player: 'player' | 'opponent', message: string) => {
     const newLogs = [...battleLog, message];
@@ -457,6 +646,19 @@ const Game = () => {
       endTurn('opponent');
     } else {
       endTurn('player');
+    }
+  };
+
+  const handleTurnTimeExpired = () => {
+    // When the turn timer expires, automatically end the player's turn
+    if (currentTurn === 'player' && gameStatus === 'playing') {
+      const message = "Turn time expired! Your turn has ended.";
+      setBattleLog(prev => [...prev, message]);
+      toast.warning("Turn time expired", {
+        description: "Your turn has automatically ended"
+      });
+      setTurnTimeExpired(true);
+      endTurn('opponent');
     }
   };
 
@@ -486,7 +688,8 @@ const Game = () => {
     setFatigueDamage(prev => prev + 1);
     setConsecutiveSkips(prev => prev + 1);
 
-    if (consecutiveSkips >= 2) {
+    // Only check for draw after 3 consecutive skips
+    if (consecutiveSkips >= 2) { // Changed from 3 to 2 since we increment before checking
         endGame(null);
         return;
     }
@@ -495,7 +698,13 @@ const Game = () => {
   };
 
   const playCard = async (card: GameCardType) => {
-    if (currentTurn !== 'player' || gameStatus !== 'playing') {
+    if (!walletConnected || !isRegistered) {
+        toast.error("Please connect wallet and register first");
+        return;
+    }
+
+    if (gameStatus !== 'playing' || currentTurn !== 'player') {
+      toast.warning("Not your turn!");
       return;
     }
 
@@ -505,114 +714,340 @@ const Game = () => {
     }
 
     try {
-      const newMove: MonadGameMove = {
-          gameId: Date.now(),
-          moveId: `move-${Date.now()}`,
-          playerAddress: walletAddress,
-          cardId: card.id,
-          moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
-          timestamp: Date.now(),
-          verified: false
-      };
+        // Generate a unique game ID for this move
+        const gameId = Date.now();
 
-      await monadGameService.executeParallelMoves([newMove]);
+        const newMove: MonadGameMove = {
+            gameId,
+            moveId: `move-${gameId}`,
+            playerAddress: walletAddress,
+            cardId: card.id,
+            moveType: card.type.toLowerCase() as 'attack' | 'defend' | 'special',
+            timestamp: Date.now(),
+            verified: false
+        };
 
-      setPlayerMana(prev => prev - card.mana);
-      setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
-      setSelectedCard(card);
-      
-      setPlayerLastCards(prev => [card, ...prev].slice(0, 3));
+        // Show transaction pending state
+        setIsTransactionPending(true);
+        const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
 
-      let logEntry = `You played ${card.name}.`;
-      let opponentNewHealth = opponentHealth;
-      let playerNewHealth = playerHealth;
-      let extraMana = 0;
-      let applyStun = false;
+        setCurrentTransaction({
+            txHash,
+            description: `Playing card: ${card.name}`,
+            blockNumber: blockchainStats.currentBlockHeight
+        });
 
-      if (card.attack) {
-        let damageBonus = 0;
-        const lastCard = playerLastCards[0];
-        if (lastCard?.type === 'attack') {
-          damageBonus = Math.floor(card.attack * 0.2);
-          logEntry += ` Combo bonus: +${damageBonus} damage!`;
+        // Visual feedback for transaction
+        toast.loading("Submitting move to MONAD blockchain...", {
+            id: txHash,
+            duration: 3000,
+        });
+
+        // Submit move to blockchain
+        await monadGameService.executeParallelMoves([newMove]);
+
+        // Update transaction status
+        const newTransaction: Transaction = {
+            txHash,
+            status: 'confirmed',
+            blockNumber: blockchainStats.currentBlockHeight + 1,
+            timestamp: Date.now(),
+            description: `Played ${card.name} (${card.type})`
+        };
+
+        setTransactions(prev => [newTransaction, ...prev].slice(0, 5));
+        setIsTransactionPending(false);
+        setCurrentTransaction(null);
+
+        toast.success("Move confirmed on MONAD blockchain", {
+            id: txHash,
+            description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
+        });
+
+        setPlayerMana(prev => prev - card.mana);
+        setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
+        setSelectedCard(card);
+        setPlayerLastCards(prev => [card, ...prev].slice(0, 3));
+
+        let logEntry = `You played ${card.name}.`;
+        let opponentNewHealth = opponentHealth;
+        let playerNewHealth = playerHealth;
+        let extraMana = 0;
+        let applyStun = false;
+
+        // Apply card effects based on type
+        if (card.attack) {
+          // Calculate damage with potential critical hit for higher rarity cards
+          let damage = card.attack;
+          let criticalHit = false;
+          let boostBonus = 0;
+
+          // Add boost effect message if card is boosted
+          if (card.boosted && card.originalAttack) {
+            boostBonus = card.attack - card.originalAttack;
+          }
+
+          // Critical hit chance based on card rarity
+          if (card.rarity === 'epic' && Math.random() < 0.2) {
+            damage = Math.floor(damage * 1.5);
+            criticalHit = true;
+          } else if (card.rarity === 'legendary' && Math.random() < 0.3) {
+            damage = Math.floor(damage * 2);
+            criticalHit = true;
+          }
+
+          opponentNewHealth = Math.max(0, opponentHealth - damage);
+
+          if (criticalHit && boostBonus > 0) {
+            logEntry += ` CRITICAL HIT + MONAD BOOST! Dealt ${damage} damage (includes +${boostBonus} from boost).`;
+          } else if (criticalHit) {
+            logEntry += ` CRITICAL HIT! Dealt ${damage} damage.`;
+          } else if (boostBonus > 0) {
+            logEntry += ` Dealt ${damage} damage (includes +${boostBonus} from MONAD boost).`;
+          } else {
+            logEntry += ` Dealt ${damage} damage.`;
+          }
+
+          // Visual effect for boosted attacks
+          if (boostBonus > 0) {
+            toast("MONAD Boost Applied", {
+              description: `+${boostBonus} attack power from MONAD boost`,
+              icon: "✨",
+              duration: 2000,
+            });
+          }
         }
 
-        const totalDamage = card.attack + damageBonus;
-        opponentNewHealth = Math.max(0, opponentHealth - totalDamage);
-        logEntry += ` Dealt ${totalDamage} damage.`;
-      }
+        if (card.defense) {
+          // Healing is more effective at lower health (comeback mechanic)
+          let healing = card.defense;
+          let boostBonus = 0;
+          let lowHealthBonus = 0;
 
-      if (card.defense) {
-        let healingBonus = 0;
-        if (playerLastCards[0]?.type === 'defense') {
-          healingBonus = Math.floor(card.defense * 0.15);
-          logEntry += ` Enhanced healing: +${healingBonus}!`;
+          // Add boost effect message if card is boosted
+          if (card.boosted && card.originalDefense) {
+            boostBonus = card.defense - card.originalDefense;
+          }
+
+          // Low health bonus
+          if (playerHealth < 10) {
+            lowHealthBonus = Math.floor(healing * 0.3); // 30% bonus when low on health
+            healing = healing + lowHealthBonus;
+          }
+
+          playerNewHealth = Math.min(30, playerHealth + healing);
+
+          if (lowHealthBonus > 0 && boostBonus > 0) {
+            logEntry += ` Enhanced healing + MONAD BOOST! Gained ${healing} health (includes +${boostBonus} from boost and +${lowHealthBonus} from low health bonus).`;
+          } else if (lowHealthBonus > 0) {
+            logEntry += ` Enhanced healing! Gained ${healing} health (includes +${lowHealthBonus} from low health bonus).`;
+          } else if (boostBonus > 0) {
+            logEntry += ` Gained ${healing} health (includes +${boostBonus} from MONAD boost).`;
+          } else {
+            logEntry += ` Gained ${healing} health.`;
+          }
+
+          // Visual effect for boosted healing
+          if (boostBonus > 0) {
+            toast("MONAD Boost Applied", {
+              description: `+${boostBonus} healing power from MONAD boost`,
+              icon: "✨",
+              duration: 2000,
+            });
+          }
         }
 
-        const totalHealing = card.defense + healingBonus;
-        playerNewHealth = Math.min(20, playerHealth + totalHealing);
-        logEntry += ` Gained ${totalHealing} health.`;
-      }
+        // Handle special effects with expanded functionality
+        if (card.specialEffect) {
+          logEntry += ` ${card.specialEffect.description}`;
 
-      if (card.specialEffect) {
-        logEntry += ` ${card.specialEffect.description}`;
+          // Check if special effect is boosted
+          let specialBoostBonus = 0;
+          if (card.boosted && card.originalSpecial && card.special) {
+            specialBoostBonus = card.special - card.originalSpecial;
+          }
 
-        switch (card.specialEffect.type) {
-          case 'damage':
-            if (card.specialEffect.value) {
-              opponentNewHealth = Math.max(0, opponentNewHealth - card.specialEffect.value);
-              logEntry += ` (${card.specialEffect.value} extra damage)`;
-            }
-            break;
+          switch (card.specialEffect.type) {
+            case 'damage':
+              if (card.specialEffect.value) {
+                // Apply boost to special damage if applicable
+                let specialDamage = card.specialEffect.value;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Scale the special effect damage by the boost percentage
+                  const boostMultiplier = card.special / (card.originalSpecial || 1);
+                  specialDamage = Math.floor(specialDamage * boostMultiplier);
+                }
 
-          case 'heal':
-            if (card.specialEffect.value) {
-              playerNewHealth = Math.min(30, playerNewHealth + card.specialEffect.value);
-              logEntry += ` (${card.specialEffect.value} extra healing)`;
-            }
-            break;
+                opponentNewHealth = Math.max(0, opponentNewHealth - specialDamage);
 
-          case 'mana':
-            if (card.specialEffect.value) {
-              extraMana = card.specialEffect.value;
-              logEntry += ` (Gained ${extraMana} extra mana)`;
-            }
-            break;
+                if (specialBoostBonus > 0) {
+                  logEntry += ` (${specialDamage} extra damage, MONAD boosted)`;
 
-          case 'stun':
-            applyStun = true;
-            logEntry += ` (Opponent stunned for 1 turn)`;
-            break;
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Special effect amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (${specialDamage} extra damage)`;
+                }
+              }
+              break;
 
-          case 'leech':
-            if (card.specialEffect.value && card.attack) {
-              const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
-              playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
-              logEntry += ` (Leeched ${leechAmount} health)`;
-            }
-            break;
+            case 'heal':
+              if (card.specialEffect.value) {
+                // Apply boost to special healing if applicable
+                let specialHealing = card.specialEffect.value;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Scale the special effect healing by the boost percentage
+                  const boostMultiplier = card.special / (card.originalSpecial || 1);
+                  specialHealing = Math.floor(specialHealing * boostMultiplier);
+                }
+
+                playerNewHealth = Math.min(30, playerNewHealth + specialHealing);
+
+                if (specialBoostBonus > 0) {
+                  logEntry += ` (${specialHealing} extra healing, MONAD boosted)`;
+
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Healing effect amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (${specialHealing} extra healing)`;
+                }
+              }
+              break;
+
+            case 'mana':
+              if (card.specialEffect.value) {
+                // Apply boost to mana gain if applicable
+                extraMana = card.specialEffect.value;
+                if (specialBoostBonus > 0 && card.special) {
+                  // Add a bonus mana for boosted cards
+                  extraMana += 1;
+                  logEntry += ` (Gained ${extraMana} extra mana, +1 from MONAD boost)`;
+
+                  // Visual effect for boosted special
+                  toast("MONAD Special Boost", {
+                    description: `Mana gain amplified by MONAD boost`,
+                    icon: "✨",
+                    duration: 2000,
+                  });
+                } else {
+                  logEntry += ` (Gained ${extraMana} extra mana)`;
+                }
+              }
+              break;
+
+            case 'stun':
+              applyStun = true;
+
+              // Boosted stun cards have a chance to stun for an extra turn
+              if (specialBoostBonus > 0 && Math.random() < 0.5) {
+                logEntry += ` (Opponent stunned for 2 turns, enhanced by MONAD boost)`;
+                // We'll need to handle the extended stun in the game logic
+
+                // Visual effect for boosted special
+                toast("MONAD Special Boost", {
+                  description: `Stun effect amplified by MONAD boost`,
+                  icon: "✨",
+                  duration: 2000,
+                });
+              } else {
+                logEntry += ` (Opponent stunned for 1 turn)`;
+              }
+              break;
+
+            case 'leech':
+              if (card.specialEffect.value && card.attack) {
+                // Leech life equal to a percentage of damage dealt
+                const leechAmount = Math.floor(card.attack * (card.specialEffect.value / 100));
+                playerNewHealth = Math.min(30, playerNewHealth + leechAmount);
+                logEntry += ` (Leeched ${leechAmount} health)`;
+              }
+              break;
+          }
+
+          // Handle effect types for more complex mechanics
+          switch (card.specialEffect.effectType) {
+            case 'COMBO':
+              // Combo cards get stronger if played after certain other cards
+              if (card.specialEffect.comboWith && pendingMoves.length > 0) {
+                const lastMove = pendingMoves[pendingMoves.length - 1];
+                if (card.specialEffect.comboWith.includes(lastMove.cardId)) {
+                  // Bonus damage for combo
+                  opponentNewHealth = Math.max(0, opponentNewHealth - 3);
+                  logEntry += ` (COMBO BONUS: +3 damage)`;
+                }
+              }
+              break;
+
+            case 'COUNTER':
+              // Counter cards are more effective against certain types
+              // This would need to track the opponent's last card
+              break;
+          }
         }
-      }
 
-      setOpponentHealth(opponentNewHealth);
-      setPlayerHealth(playerNewHealth);
-      setBattleLog(prev => [...prev, logEntry]);
-      setPendingMoves(prev => [...prev, newMove]);
+        setOpponentHealth(opponentNewHealth);
+        setPlayerHealth(playerNewHealth);
+        setBattleLog(prev => [...prev, logEntry]);
+        setPendingMoves(prev => [...prev, newMove]);
 
-      if (opponentNewHealth <= 0) {
-        endGame(true);
-        return;
-      }
+        // Reset consecutive skips counter when a card is played
+        setConsecutiveSkips(0);
 
-      if (applyStun) {
-        setIsOpponentStunned(true);
-      }
+        // Apply extra mana if card granted it
+        if (extraMana > 0) {
+          setPlayerMana(prev => Math.min(10, prev + extraMana));
+        }
 
-      endTurn('opponent');
+        // Apply stun effect if card has it
+        if (applyStun) {
+          setIsOpponentStunned(true);
+        }
 
+        toast.loading("Submitting move to MONAD blockchain...", {
+          id: newMove.moveId,
+          duration: 2000,
+        });
+
+        setTimeout(() => {
+          setPendingMoves(prev =>
+            prev.map(m => m.moveId === newMove.moveId ? {
+              ...m,
+              verified: true,
+              onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
+            } : m)
+          );
+
+          toast.success("Move confirmed on-chain", {
+            id: newMove.moveId,
+            description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
+          });
+
+          if (opponentNewHealth <= 0) {
+            endGame(true);
+            return;
+          }
+
+          // If opponent is stunned, they skip their turn
+          if (isOpponentStunned) {
+            setBattleLog(prev => [...prev, "Opponent is stunned and skips their turn!"]);
+            setIsOpponentStunned(false); // Reset stun after one turn
+            endTurn('player'); // Player gets another turn
+          } else {
+            endTurn('opponent');
+          }
+        }, isOnChain ? 2000 : 500);
     } catch (error) {
-      console.error("Error playing card:", error);
-      toast.error("Failed to play card");
+        console.error("Failed to submit move:", error);
+        toast.error("Failed to submit move to blockchain");
+        return;
     }
   };
 
@@ -637,6 +1072,7 @@ const Game = () => {
 
     try {
         await monadGameService.redeemNFT();
+        // ... rest of your existing redemption logic ...
     } catch (error) {
         console.error("NFT redemption failed:", error);
         toast.error("Failed to redeem NFT");
@@ -645,7 +1081,25 @@ const Game = () => {
 
   const endGame = async (playerWon: boolean | null) => {
     try {
-        const gameData = {
+        // Show transaction pending state
+        setIsTransactionPending(true);
+        const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
+
+        setCurrentTransaction({
+            txHash,
+            description: playerWon ? 'Recording victory on chain' : playerWon === false ? 'Recording defeat on chain' : 'Recording draw on chain',
+            blockNumber: blockchainStats.currentBlockHeight
+        });
+
+        toast.loading("Finalizing game on MONAD blockchain...", {
+            id: txHash,
+            duration: 5000,
+        });
+
+        const gameId = Date.now();
+        // Game result data for blockchain submission
+        const gameResult = {
+            gameId,
             winner: playerWon ? walletAddress : null,
             playerHealth: playerHealth,
             opponentHealth: opponentHealth,
@@ -653,32 +1107,81 @@ const Game = () => {
             moves: pendingMoves
         };
 
-        const movesBatch = {
-            gameId: Date.now(),
-            batchId: Date.now().toString(),
+        const movesBatch: MovesBatch = {
+            gameId,
+            batchId: `batch-${gameId}`,
             moves: pendingMoves,
             stateRoot: "0x" + Math.random().toString(16).slice(2),
             zkProof: "0x" + Math.random().toString(16).slice(2),
             verificationTime: Date.now(),
-            submittedInBlock: monadGameState.currentBlockHeight || 0
+            submittedInBlock: blockchainStats.currentBlockHeight
         };
 
         await monadGameService.submitMovesBatch(movesBatch);
 
+        // Update transaction status
+        const newTransaction: Transaction = {
+            txHash,
+            status: 'confirmed',
+            blockNumber: blockchainStats.currentBlockHeight + 1,
+            timestamp: Date.now(),
+            description: playerWon
+                ? 'Victory recorded on MONAD blockchain'
+                : playerWon === false
+                ? 'Defeat recorded on MONAD blockchain'
+                : 'Draw recorded on MONAD blockchain'
+        };
+
+        setTransactions(prev => [newTransaction, ...prev].slice(0, 5));
+
+        // Award shards
         if (playerWon) {
-            const reward = getShardReward();
-            await monadGameService.claimShards(movesBatch.batchId);
+            const shardReward = getShardReward();
+
+            // Submit game result and claim shards
+            await monadGameService.claimShards(movesBatch.batchId, gameResult);
+
+            // Add shard transaction
+            const shardTxHash = `0x${Math.random().toString(16).substring(2, 42)}`;
+            const shardTransaction: Transaction = {
+                txHash: shardTxHash,
+                status: 'confirmed',
+                blockNumber: blockchainStats.currentBlockHeight + 2,
+                timestamp: Date.now() + 2000,
+                description: `Claimed ${shardReward} MONAD shards as reward`
+            };
+
+            setTransactions(prev => [shardTransaction, ...prev].slice(0, 5));
+
+            // Update player's MONAD balance
+            setPlayerMonadBalance(prev => prev + shardReward);
+
+            toast.success(`Earned ${shardReward} MONAD shards!`, {
+                description: "Shards added to your inventory"
+            });
         }
+
+        setIsTransactionPending(false);
+        setCurrentTransaction(null);
+
+        toast.success("Game results recorded on MONAD blockchain", {
+            id: txHash,
+            description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
+        });
 
     } catch (error) {
         console.error("Failed to record game result:", error);
         toast.error("Failed to record game result on blockchain");
+        setIsTransactionPending(false);
+        setCurrentTransaction(null);
     }
 
     setGameStatus('end');
   };
 
   const resetGame = () => {
+    // Don't reset player deck - use the one they selected
+    // Only reset if they haven't selected any cards
     if (playerDeck.length === 0) {
       setPlayerDeck(allPlayerCards.slice(0, 3));
     }
@@ -698,7 +1201,13 @@ const Game = () => {
   };
 
   const backToRoomSelection = () => {
-    setGameStatus('room_select');
+    if (gameMode === GameMode.PRACTICE) {
+      setGameStatus('room_select');
+    } else if (gameMode === GameMode.GAMEROOM) {
+      setGameStatus('gameroom');
+    } else {
+      setGameStatus('mode_select');
+    }
     setBattleLog([]);
   };
 
@@ -727,7 +1236,7 @@ const Game = () => {
         return (
             <UICard className="glassmorphism border-emerald-500/30 p-6 text-center">
                 <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
-                <Button 
+                <Button
                     onClick={() => monadGameService.connectWallet()}
                     className="bg-gradient-to-r from-emerald-400 to-teal-500"
                 >
@@ -742,19 +1251,40 @@ const Game = () => {
             <UICard className="glassmorphism border-emerald-500/30 p-6 text-center">
                 <h2 className="text-2xl font-bold text-white mb-4">Register to Play</h2>
                 <p className="text-gray-400 mb-6">Register your wallet to start playing Monad Chain Game</p>
-                <Button 
+                <Button
                     onClick={async () => {
+                        // Disable the button to prevent multiple clicks
+                        const button = document.activeElement as HTMLButtonElement;
+                        if (button) button.disabled = true;
+
+                        const toastId = "register-player-toast";
+                        toast.loading("Registering player on Monad blockchain...", { id: toastId });
+
                         try {
-                            toast.loading("Registering player on Monad blockchain...");
+                            // Call the service to register the player
+                            // The service now has built-in timeout handling
                             await monadGameService.registerPlayer();
+
+                            // Registration successful
+                            toast.success("Successfully registered!", {
+                                id: toastId,
+                                description: "Welcome to Monad Chain Game"
+                            });
+
+                            // Update the UI state
                             setIsRegistered(true);
-                            toast.success("Successfully registered! Welcome to Monad Chain Game");
                         } catch (error: any) {
                             console.error("Registration failed:", error);
+
+                            // If there was an error, show it to the user
                             const errorMessage = error.message || "Failed to register. Please try again.";
                             toast.error("Registration failed", {
+                                id: toastId,
                                 description: errorMessage
                             });
+
+                            // Re-enable the button
+                            if (button) button.disabled = false;
                         }
                     }}
                     className="bg-gradient-to-r from-emerald-400 to-teal-500"
@@ -766,8 +1296,35 @@ const Game = () => {
     }
 
     switch (gameStatus) {
+      case 'mode_select':
+        return <GameModeMenu onSelectMode={handleSelectGameMode} />;
+
       case 'room_select':
-        return <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />;
+        return (
+          <div className="space-y-4">
+            <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />
+
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                className="text-xs text-gray-400 hover:text-white"
+                onClick={backToModeSelection}
+              >
+                Back to Game Modes
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'gameroom':
+        return (
+          <GameRoomManager
+            onStartGame={handleGameRoomStart}
+            onBack={backToModeSelection}
+            walletAddress={walletAddress}
+            username={currentPlayer.username}
+          />
+        );
 
       case 'inventory':
         return (
@@ -776,7 +1333,7 @@ const Game = () => {
             onClose={closeInventory}
             onSelectCards={handleCardSelection}
             maxSelectable={3}
-            selectionMode={opponentCards.length > 0}
+            selectionMode={opponentCards.length > 0} // Only enable selection mode if we came from difficulty selection
           />
         );
 
@@ -846,10 +1403,33 @@ const Game = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-white">MONAD Battle</h2>
                   <p className="text-gray-400 text-sm">
-                    Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
-                    <span className="mx-2">•</span>
-                    {renderManaExplanation()}
+                    {gameMode === GameMode.PRACTICE ? (
+                      <>
+                        Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
+                        <span className="mx-2">•</span>
+                        {renderManaExplanation()}
+                      </>
+                    ) : (
+                      <>
+                        Mode: <span className="text-blue-400">1v1 Game Room</span>
+                        <span className="mx-2">•</span>
+                        {renderManaExplanation()}
+                        {currentRoom && (
+                          <>
+                            <span className="mx-2">•</span>
+                            Room: <span className="text-blue-400 font-mono">{currentRoom.roomCode}</span>
+                          </>
+                        )}
+                      </>
+                    )}
                   </p>
+
+                  {/* Game Sync Status - Only show for Game Room mode */}
+                  {gameMode === GameMode.GAMEROOM && currentRoom && (
+                    <div className="mt-2">
+                      <GameSyncStatus roomCode={currentRoom.roomCode} />
+                    </div>
+                  )}
                 </div>
                 <ShardManager
                   player={playerData}
@@ -926,12 +1506,35 @@ const Game = () => {
                       </div>
 
                       <div className="mb-6">
-                        <h3 className="text-white text-sm flex items-center mb-2">
-                          Battle Log
-                          <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${currentTurn === 'player' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {currentTurn === 'player' ? 'Your Turn' : 'AI Turn'}
-                          </span>
-                        </h3>
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-white text-sm flex items-center">
+                            Battle Log
+                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${currentTurn === 'player' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {currentTurn === 'player' ? 'Your Turn' : 'AI Turn'}
+                            </span>
+                          </h3>
+                          {currentTurn === 'player' && gameMode === GameMode.GAMEROOM && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => endTurn('opponent')}
+                              className="text-xs h-7 px-2 border-gray-700"
+                            >
+                              Skip Turn
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Turn Timer */}
+                        {currentTurn === 'player' && gameMode === GameMode.GAMEROOM && (
+                          <div className="mb-2">
+                            <TurnTimer
+                              isActive={currentTurn === 'player'}
+                              duration={60} // 60 seconds per turn
+                              onTimeExpired={handleTurnTimeExpired}
+                            />
+                          </div>
+                        )}
                         <div className="bg-black/40 rounded-md p-2 h-40 overflow-y-auto border border-white/10">
                           {battleLog.map((log, index) => (
                             <p key={index} className={`text-xs mb-1 ${index === battleLog.length - 1 ? 'text-emerald-400' : 'text-gray-300'}`}>
@@ -1059,5 +1662,5 @@ const Game = () => {
                   <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
                 </div>
                 <div className="bg-black/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div className="min-h-screen bg-background">      <Navigation />      <div className="container mx-auto pt-24 px-4 pb-16">        {renderGameContent()}      </div>    </div>  );};
-                  export default Game;
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}    </div>  );}
+                  ;export default Game;

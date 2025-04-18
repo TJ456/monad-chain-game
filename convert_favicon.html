@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convert SVG to Favicon</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 20px 0;
+    }
+    .instructions {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Convert Monad SVG to Favicon</h1>
+  
+  <div class="instructions">
+    <h2>Instructions:</h2>
+    <ol>
+      <li>The SVG will be rendered on the canvas below</li>
+      <li>Right-click on the canvas and select "Save image as..."</li>
+      <li>Save the image as "favicon.ico" in your project's public folder</li>
+    </ol>
+  </div>
+
+  <div>
+    <h3>Original SVG:</h3>
+    <img src="public/monad_logo.svg" width="64" height="64" alt="Monad Logo">
+  </div>
+
+  <div>
+    <h3>Canvas for ICO conversion:</h3>
+    <canvas id="canvas" width="32" height="32"></canvas>
+  </div>
+
+  <button id="downloadBtn">Download as ICO</button>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = function() {
+        // Fill with purple background
+        ctx.fillStyle = '#836EF9';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw the SVG
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      
+      img.src = 'public/monad_logo.svg';
+
+      // Download button
+      document.getElementById('downloadBtn').addEventListener('click', function() {
+        const link = document.createElement('a');
+        link.download = 'favicon.ico';
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    });
+  </script>
+</body>
+</html>
