@@ -23,7 +23,6 @@ const Navigation: React.FC = () => {
   const [isWalletConnected, setIsWalletConnected] = useState(false);
 
   const handleConnectWallet = async () => {
-    // Check if MetaMask is installed
     if (!window.ethereum) {
       toast({
         title: "MetaMask Not Found",
@@ -40,15 +39,29 @@ const Navigation: React.FC = () => {
       const address = await signer.getAddress();
 
       // Validate the network
-      const requiredNetwork = "0x1"; // Ethereum Mainnet
+      const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
+      const requiredNetworkName = import.meta.env.VITE_NETWORK_NAME;
       const currentNetwork = await provider.getNetwork();
+
       if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
-        toast({
-          title: "Wrong Network",
-          description: "Please switch to the Ethereum Mainnet.",
-          variant: "destructive",
-        });
-        return;
+        // Show network switch dialog
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: requiredNetwork }],
+          });
+        } catch (switchError: any) {
+          // If the chain hasn't been added to MetaMask
+          if (switchError.code === 4902) {
+            toast({
+              title: "Network Not Found",
+              description: `Please add the ${requiredNetworkName} network to your wallet.`,
+              variant: "destructive",
+            });
+            return;
+          }
+          throw switchError;
+        }
       }
 
       // Update state and currentPlayer
@@ -58,30 +71,25 @@ const Navigation: React.FC = () => {
       // Show success toast
       toast({
         title: "Wallet Connected",
-        description: `Connected to ${address}`,
+        description: `Connected to ${requiredNetworkName}`,
         variant: "default",
       });
     } catch (error: any) {
-      // Log the error for debugging
       console.error("Wallet connection error:", error);
 
-      // Handle specific MetaMask errors
       if (error.code === 4001) {
-        // User rejected the connection request
         toast({
           title: "Connection Rejected",
           description: "You rejected the connection request. Please try again.",
           variant: "destructive",
         });
       } else if (error.code === -32002) {
-        // Connection request already pending
         toast({
           title: "Connection Pending",
           description: "A connection request is already pending. Please check MetaMask.",
           variant: "destructive",
         });
       } else {
-        // General error
         toast({
           title: "Connection Failed",
           description: error.message || "Failed to connect wallet. Please try again.",
@@ -99,7 +107,7 @@ const Navigation: React.FC = () => {
           <div className="flex items-center space-x-1">
             <div className="h-8 w-8 rounded-full bg-mondo-purple animate-pulse-ring"></div>
             <Link to="/" className="text-2xl font-bold text-white">
-              MONDO<span className="text-mondo-blue">Chain</span>Games
+              MONAD<span className="text-mondo-blue"><b>Chain-Games</b></span>
             </Link>
           </div>
 

@@ -5,8 +5,8 @@ import { Badge } from "@/components/ui/badge";
 
 const ParallelExecutionBattles: React.FC = () => {
   return (
-    <Card className="glassmorphism border-emerald-500/30 p-6">
-      <div className="flex items-center space-x-4 mb-4">
+    <Card className="glassmorphism border-emerald-500/30 p-6 h-full flex flex-col min-h-[600px] feature-box relative">
+      <div className="flex items-center space-x-4 mb-6">
         <div className="h-10 w-10 rounded-full bg-emerald-500/30 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -18,8 +18,8 @@ const ParallelExecutionBattles: React.FC = () => {
         </div>
         <Badge className="ml-auto bg-emerald-600 text-white">Monad Exclusive</Badge>
       </div>
-      
-      <div className="space-y-4">
+
+      <div className="space-y-4 flex-grow">
         <div className="bg-black/30 p-4 rounded-lg border border-emerald-500/20">
           <div className="flex items-start space-x-4">
             <div className="flex-none">
@@ -37,7 +37,7 @@ const ParallelExecutionBattles: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-black/30 p-4 rounded-lg border border-emerald-500/20">
           <div className="flex items-start space-x-4">
             <div className="flex-none">
@@ -55,19 +55,19 @@ const ParallelExecutionBattles: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="flex justify-between items-center mt-4">
           <div className="flex flex-col items-center">
             <span className="text-xs text-gray-500">Traditional Chain</span>
             <span className="text-emerald-400 font-bold">2100ms</span>
           </div>
-          
+
           <div className="h-0.5 flex-1 bg-gray-700 mx-4 relative">
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-emerald-900/50 text-emerald-400 text-xs px-2 py-1 rounded-full">
               87% faster
             </div>
           </div>
-          
+
           <div className="flex flex-col items-center">
             <span className="text-xs text-gray-500">Monad Chain</span>
             <span className="text-emerald-400 font-bold">280ms</span>
