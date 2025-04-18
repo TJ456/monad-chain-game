@@ -257,6 +257,14 @@ export enum AIDifficultyTier {
   LEGEND = 'legend'
 }
 
+export enum GameMode {
+  PRACTICE = 'practice',
+  GAMEROOM = 'gameroom',
+  RANKED = 'ranked',
+  TOURNAMENT = 'tournament',
+  STORY = 'story'
+}
+
 export interface AIBehavior {
   name: string;
   description: string;
@@ -284,5 +292,32 @@ export interface NFTRedemptionRule {
   cooldownPeriod: number; // in milliseconds
   maxDailyTrials: number;
   gasCost: number;
+}
+
+// Game Room interfaces for 1v1 mode
+export interface GameRoom {
+  id: string;
+  roomCode: string;
+  creatorAddress: string;
+  creatorUsername: string;
+  opponentAddress?: string;
+  opponentUsername?: string;
+  status: 'waiting' | 'playing' | 'completed';
+  createdAt: number;
+  gameId?: number;
+  winner?: string;
+  transactionHash?: string;
+  blockNumber?: number;
+}
+
+export interface GameRoomMove {
+  roomId: string;
+  moveId: string;
+  playerAddress: string;
+  cardId: string;
+  moveType: 'attack' | 'defend' | 'special';
+  timestamp: number;
+  blockchainStatus: 'pending' | 'confirmed' | 'failed';
+  transactionHash?: string;
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navigation from '@/components/Navigation';
 import { Card as UICard } from "@/components/ui/card";
 import GameCard from '@/components/GameCard';
@@ -6,14 +6,22 @@ import MonadStatus from '@/components/MonadStatus';
 import ShardManager from '@/components/ShardManager';
 import MonadBoostMechanic from '@/components/MonadBoostMechanic';
 import GameRoomSelector from '@/components/GameRoomSelector';
+import GameModeMenu from '@/components/GameModeMenu';
+import GameRoomManager from '@/components/GameRoomManager';
+import TurnTimer from '@/components/TurnTimer';
+import GameSyncStatus from '@/components/GameSyncStatus';
+import TransactionConfirmation from '@/components/TransactionConfirmation';
+import GameTransactionOverlay from '@/components/GameTransactionOverlay';
 import PlayerInventory from '@/components/PlayerInventory';
 import BlockchainTransactionInfo, { Transaction } from '@/components/BlockchainTransactionInfo';
 import TransactionLoader from '@/components/TransactionLoader';
+import WebSocketService, { WebSocketMessageType } from '@/services/WebSocketService';
+import GameSyncService, { GameState, ConflictResolutionStrategy } from '@/services/GameSyncService';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { toast } from "sonner";
 import { cards, currentPlayer, monadGameState } from '@/data/gameData';
-import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType, MovesBatch } from '@/types/game';
+import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType, MovesBatch, GameMode, GameRoom } from '@/types/game';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Package, Shield, Sword, Zap, ExternalLink } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
@@ -29,7 +37,20 @@ const Game = () => {
   const [playerDeck, setPlayerDeck] = useState<GameCardType[]>(currentPlayer.cards);
   const [opponentCards, setOpponentCards] = useState<GameCardType[]>([]);
   const [selectedCard, setSelectedCard] = useState<GameCardType | null>(null);
-  const [gameStatus, setGameStatus] = useState<'room_select' | 'inventory' | 'waiting' | 'playing' | 'end'>('room_select');
+  const [gameMode, setGameMode] = useState<GameMode | null>(null);
+  const [gameStatus, setGameStatus] = useState<'mode_select' | 'room_select' | 'gameroom' | 'inventory' | 'waiting' | 'playing' | 'end'>('mode_select');
+  const [currentRoom, setCurrentRoom] = useState<GameRoom | null>(null);
+
+  // WebSocket and sync state
+  const [wsConnected, setWsConnected] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showTransactionConfirmation, setShowTransactionConfirmation] = useState(false);
+  const [transactionDetails, setTransactionDetails] = useState<{
+    hash: string;
+    status: 'pending' | 'confirmed' | 'failed';
+    blockNumber?: number;
+    timestamp: number;
+  } | null>(null);
   const [playerMana, setPlayerMana] = useState(10);
   const [opponentMana, setOpponentMana] = useState(10);
   const [playerHealth, setPlayerHealth] = useState(20);
@@ -59,6 +80,7 @@ const Game = () => {
   } | null>(null);
   const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
   const [isOpponentStunned, setIsOpponentStunned] = useState(false);
+  const [turnTimeExpired, setTurnTimeExpired] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [isRegistered, setIsRegistered] = useState(false);
@@ -134,6 +156,48 @@ const Game = () => {
             // Check if player is registered
             const playerData = await monadGameService.getPlayerData(address);
             setIsRegistered(!!playerData);
+
+            // Initialize WebSocket connection
+            const wsService = WebSocketService.getInstance();
+            const syncService = GameSyncService.getInstance();
+
+            // Set up WebSocket connection listeners
+            wsService.addConnectionStatusListener((connected) => {
+              setWsConnected(connected);
+              if (connected) {
+                toast.success("Connected to game server", {
+                  description: "Real-time updates enabled"
+                });
+              } else {
+                toast.error("Disconnected from game server", {
+                  description: "Attempting to reconnect..."
+                });
+              }
+            });
+
+            // Set up sync status listeners
+            syncService.addSyncStatusListener((syncing) => {
+              setIsSyncing(syncing);
+            });
+
+            // Set up transaction update listeners
+            syncService.addTransactionUpdateListener((update) => {
+              setTransactionDetails({
+                hash: update.transactionHash,
+                status: update.status,
+                blockNumber: update.blockNumber,
+                timestamp: update.timestamp
+              });
+
+              if (update.status === 'confirmed') {
+                setShowTransactionConfirmation(true);
+                // Auto-hide after 5 seconds
+                setTimeout(() => setShowTransactionConfirmation(false), 5000);
+              }
+            });
+
+            // Connect to WebSocket server
+            wsService.connect(address || 'anonymous');
         } catch (error) {
             console.error("Blockchain initialization error:", error);
             toast.error("Failed to connect to blockchain");
@@ -141,11 +205,57 @@ const Game = () => {
     };
 
     initializeBlockchain();
+
+    // Clean up on unmount
+    return () => {
+      const wsService = WebSocketService.getInstance();
+      wsService.disconnect();
+    };
   }, []);
 
   const getPlayableCards = useCallback((cards: GameCardType[], mana: number) => {
     return cards.filter(card => card.mana <= mana);
   }, []);
+
+  const handleSelectGameMode = (mode: GameMode) => {
+    setGameMode(mode);
+
+    if (mode === GameMode.PRACTICE) {
+      setGameStatus('room_select');
+      toast.success("Practice Mode Selected", {
+        description: "Choose a difficulty level to practice against AI"
+      });
+    } else if (mode === GameMode.GAMEROOM) {
+      setGameStatus('gameroom');
+      toast.success("Game Room Mode Selected", {
+        description: "Create or join a room to play against a friend"
+      });
+    }
+  };
+
+  const handleRoomCreated = (room: GameRoom) => {
+    setCurrentRoom(room);
+    // Room creation is handled by the GameRoomManager component
+  };
+
+  const handleGameRoomStart = () => {
+    // When a game starts in game room mode
+    resetGame();
+    setGameStatus('playing');
+    setCurrentTurn('player');
+    setBattleLog(['1v1 Battle has begun on the MONAD blockchain! Your turn.']);
+
+    toast.success("Game Started", {
+      description: "The 1v1 battle has begun! Play your first card."
+    });
+  };
+
+  const backToModeSelection = () => {
+    setGameStatus('mode_select');
+    setGameMode(null);
+    setCurrentRoom(null);
+    setOpponentCards([]);
+  };
 
   useEffect(() => {
     if (gameStatus !== 'playing') return;
@@ -253,20 +363,22 @@ const Game = () => {
     setCurrentTurn('player');
     setBattleLog(['Battle has begun on the MONAD blockchain! Your turn.']);
 
-    let difficultyMessage = "";
-    switch (aiDifficulty) {
-      case AIDifficultyTier.NOVICE:
-        difficultyMessage = "Novice training battle begins. Perfect your strategy!";
-        break;
-      case AIDifficultyTier.VETERAN:
-        difficultyMessage = "Veteran AI activated. This opponent has advanced tactics!";
-        break;
-      case AIDifficultyTier.LEGEND:
-        difficultyMessage = "LEGENDARY AI ENGAGED! Prepare for the ultimate challenge!";
-        break;
-    }
+    if (gameMode === GameMode.PRACTICE) {
+      let difficultyMessage = "";
+      switch (aiDifficulty) {
+        case AIDifficultyTier.NOVICE:
+          difficultyMessage = "Novice training battle begins. Perfect your strategy!";
+          break;
+        case AIDifficultyTier.VETERAN:
+          difficultyMessage = "Veteran AI activated. This opponent has advanced tactics!";
+          break;
+        case AIDifficultyTier.LEGEND:
+          difficultyMessage = "LEGENDARY AI ENGAGED! Prepare for the ultimate challenge!";
+          break;
+      }
 
-    setBattleLog(prev => [...prev, difficultyMessage]);
+      setBattleLog(prev => [...prev, difficultyMessage]);
+    }
 
     uiToast({
       title: "Game Started",
@@ -501,10 +613,10 @@ const Game = () => {
   }, [boostActive, boostDetails]);
 
   useEffect(() => {
-    if (gameStatus === 'playing' && currentTurn === 'opponent') {
+    if (gameStatus === 'playing' && currentTurn === 'opponent' && gameMode === GameMode.PRACTICE) {
       handleOpponentTurn();
     }
-  }, [currentTurn, gameStatus]);
+  }, [currentTurn, gameStatus, gameMode]);
 
   const handleNoPlayableCards = (player: 'player' | 'opponent', message: string) => {
     const newLogs = [...battleLog, message];
@@ -514,6 +626,19 @@ const Game = () => {
       endTurn('opponent');
     } else {
       endTurn('player');
+    }
+  };
+
+  const handleTurnTimeExpired = () => {
+    // When the turn timer expires, automatically end the player's turn
+    if (currentTurn === 'player' && gameStatus === 'playing') {
+      const message = "Turn time expired! Your turn has ended.";
+      setBattleLog(prev => [...prev, message]);
+      toast.warning("Turn time expired", {
+        description: "Your turn has automatically ended"
+      });
+      setTurnTimeExpired(true);
+      endTurn('opponent');
     }
   };
 
@@ -1056,7 +1181,13 @@ const Game = () => {
   };
 
   const backToRoomSelection = () => {
-    setGameStatus('room_select');
+    if (gameMode === GameMode.PRACTICE) {
+      setGameStatus('room_select');
+    } else if (gameMode === GameMode.GAMEROOM) {
+      setGameStatus('gameroom');
+    } else {
+      setGameStatus('mode_select');
+    }
     setBattleLog([]);
   };
 
@@ -1124,8 +1255,35 @@ const Game = () => {
     }
 
     switch (gameStatus) {
+      case 'mode_select':
+        return <GameModeMenu onSelectMode={handleSelectGameMode} />;
+
       case 'room_select':
-        return <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />;
+        return (
+          <div className="space-y-4">
+            <GameRoomSelector onSelectDifficulty={handleSelectDifficulty} />
+
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                className="text-xs text-gray-400 hover:text-white"
+                onClick={backToModeSelection}
+              >
+                Back to Game Modes
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'gameroom':
+        return (
+          <GameRoomManager
+            onStartGame={handleGameRoomStart}
+            onBack={backToModeSelection}
+            walletAddress={walletAddress}
+            username={currentPlayer.username}
+          />
+        );
 
       case 'inventory':
         return (
@@ -1204,10 +1362,33 @@ const Game = () => {
                 <div>
                   <h2 className="text-2xl font-bold text-white">MONAD Battle</h2>
                   <p className="text-gray-400 text-sm">
-                    Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
-                    <span className="mx-2">•</span>
-                    {renderManaExplanation()}
+                    {gameMode === GameMode.PRACTICE ? (
+                      <>
+                        Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
+                        <span className="mx-2">•</span>
+                        {renderManaExplanation()}
+                      </>
+                    ) : (
+                      <>
+                        Mode: <span className="text-blue-400">1v1 Game Room</span>
+                        <span className="mx-2">•</span>
+                        {renderManaExplanation()}
+                        {currentRoom && (
+                          <>
+                            <span className="mx-2">•</span>
+                            Room: <span className="text-blue-400 font-mono">{currentRoom.roomCode}</span>
+                          </>
+                        )}
+                      </>
+                    )}
                   </p>
+
+                  {/* Game Sync Status - Only show for Game Room mode */}
+                  {gameMode === GameMode.GAMEROOM && currentRoom && (
+                    <div className="mt-2">
+                      <GameSyncStatus roomCode={currentRoom.roomCode} />
+                    </div>
+                  )}
                 </div>
                 <ShardManager
                   player={playerData}
@@ -1284,12 +1465,35 @@ const Game = () => {
                       </div>
 
                       <div className="mb-6">
-                        <h3 className="text-white text-sm flex items-center mb-2">
-                          Battle Log
-                          <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${currentTurn === 'player' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {currentTurn === 'player' ? 'Your Turn' : 'AI Turn'}
-                          </span>
-                        </h3>
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-white text-sm flex items-center">
+                            Battle Log
+                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${currentTurn === 'player' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                              {currentTurn === 'player' ? 'Your Turn' : 'AI Turn'}
+                            </span>
+                          </h3>
+                          {currentTurn === 'player' && gameMode === GameMode.GAMEROOM && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => endTurn('opponent')}
+                              className="text-xs h-7 px-2 border-gray-700"
+                            >
+                              Skip Turn
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Turn Timer */}
+                        {currentTurn === 'player' && gameMode === GameMode.GAMEROOM && (
+                          <div className="mb-2">
+                            <TurnTimer
+                              isActive={currentTurn === 'player'}
+                              duration={60} // 60 seconds per turn
+                              onTimeExpired={handleTurnTimeExpired}
+                            />
+                          </div>
+                        )}
                         <div className="bg-black/40 rounded-md p-2 h-40 overflow-y-auto border border-white/10">
                           {battleLog.map((log, index) => (
                             <p key={index} className={`text-xs mb-1 ${index === battleLog.length - 1 ? 'text-emerald-400' : 'text-gray-300'}`}>
@@ -1417,4 +1621,5 @@ const Game = () => {
                   <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
                 </div>
                 <div className="bg-black/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}    </div>  );};export default Game;
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}    </div>  );}
+                  ;export default Game;
