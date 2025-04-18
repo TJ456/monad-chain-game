@@ -1,5 +1,5 @@
 // Custom build script to work around Rollup issues on Vercel
-const { execSync } = require('child_process');
+import { execSync } from 'child_process';
 
 try {
   // First try to install the specific Rollup binary needed
