@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Package, Shield, Sword, Zap, ExternalLink } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
 import { monadGameService } from '@/services/MonadGameService';
+import { getTransactionExplorerUrl } from '@/utils/blockchain';
 
 const STORAGE_KEY_SHARDS = "monad_game_shards";
 const STORAGE_KEY_LAST_REDEMPTION = "monad_game_last_redemption";
@@ -729,28 +730,31 @@ const Game = () => {
 
         // Show transaction pending state
         setIsTransactionPending(true);
-        const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
 
+        // Visual feedback for transaction - use a temporary ID for the toast
+        const tempToastId = `move-${Date.now()}`;
+        toast.loading("Submitting move to MONAD blockchain...", {
+            id: tempToastId,
+            duration: 10000, // Longer duration since we're waiting for actual blockchain confirmation
+        });
+
+        // Submit move to blockchain - this will return the actual transaction hash
+        const result = await monadGameService.executeParallelMoves([newMove]);
+        const txHash = result.txHash;
+        const blockNumber = result.blockNumber;
+
+        // Set the current transaction with the real transaction hash
         setCurrentTransaction({
             txHash,
             description: `Playing card: ${card.name}`,
-            blockNumber: blockchainStats.currentBlockHeight
+            blockNumber: blockNumber
         });
 
-        // Visual feedback for transaction
-        toast.loading("Submitting move to MONAD blockchain...", {
-            id: txHash,
-            duration: 3000,
-        });
-
-        // Submit move to blockchain
-        await monadGameService.executeParallelMoves([newMove]);
-
-        // Update transaction status
+        // Update transaction status with the real transaction data
         const newTransaction: Transaction = {
             txHash,
             status: 'confirmed',
-            blockNumber: blockchainStats.currentBlockHeight + 1,
+            blockNumber: blockNumber,
             timestamp: Date.now(),
             description: `Played ${card.name} (${card.type})`
         };
@@ -759,10 +763,33 @@ const Game = () => {
         setIsTransactionPending(false);
         setCurrentTransaction(null);
 
+        // Update the toast with the real transaction hash
         toast.success("Move confirmed on MONAD blockchain", {
-            id: txHash,
+            id: tempToastId,
             description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
         });
+
+        // Add a button to view the transaction in the explorer
+        const explorerUrl = getTransactionExplorerUrl(txHash);
+        console.log('Explorer URL for transaction:', explorerUrl);
+        toast.success(
+          <div className="flex flex-col space-y-2">
+            <span>View transaction on MONAD Explorer</span>
+            <button
+              onClick={() => {
+                console.log('Opening explorer URL:', explorerUrl);
+                window.open(explorerUrl, '_blank');
+              }}
+              className="text-xs bg-emerald-900/50 hover:bg-emerald-800/50 text-emerald-400 py-1 px-2 rounded flex items-center justify-center"
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Open Explorer
+            </button>
+          </div>,
+          {
+            duration: 5000,
+          }
+        );
 
         setPlayerMana(prev => prev - card.mana);
         setPlayerDeck(prev => prev.filter(c => c.id !== card.id));
@@ -1016,19 +1043,19 @@ const Game = () => {
           duration: 2000,
         });
 
-        setTimeout(() => {
-          setPendingMoves(prev =>
-            prev.map(m => m.moveId === newMove.moveId ? {
-              ...m,
-              verified: true,
-              onChainSignature: `0x${Math.random().toString(16).slice(2, 10)}`
-            } : m)
-          );
+        // Update the move with the real transaction data
+        setPendingMoves(prev =>
+          prev.map(m => m.moveId === newMove.moveId ? {
+            ...m,
+            verified: true,
+            onChainSignature: txHash
+          } : m)
+        );
 
-          toast.success("Move confirmed on-chain", {
-            id: newMove.moveId,
-            description: `Block: ${monadGameState.currentBlockHeight! + 1}`,
-          });
+        toast.success("Move verified on-chain", {
+          id: newMove.moveId,
+          description: `Block: ${blockNumber}`,
+        });
 
           if (opponentNewHealth <= 0) {
             endGame(true);
@@ -1043,7 +1070,6 @@ const Game = () => {
           } else {
             endTurn('opponent');
           }
-        }, isOnChain ? 2000 : 500);
     } catch (error) {
         console.error("Failed to submit move:", error);
         toast.error("Failed to submit move to blockchain");
@@ -1083,17 +1109,12 @@ const Game = () => {
     try {
         // Show transaction pending state
         setIsTransactionPending(true);
-        const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
 
-        setCurrentTransaction({
-            txHash,
-            description: playerWon ? 'Recording victory on chain' : playerWon === false ? 'Recording defeat on chain' : 'Recording draw on chain',
-            blockNumber: blockchainStats.currentBlockHeight
-        });
-
+        // Use a temporary toast ID
+        const tempToastId = `game-end-${Date.now()}`;
         toast.loading("Finalizing game on MONAD blockchain...", {
-            id: txHash,
-            duration: 5000,
+            id: tempToastId,
+            duration: 15000, // Longer duration for blockchain confirmation
         });
 
         const gameId = Date.now();
@@ -1117,13 +1138,23 @@ const Game = () => {
             submittedInBlock: blockchainStats.currentBlockHeight
         };
 
-        await monadGameService.submitMovesBatch(movesBatch);
+        // Submit the batch to the blockchain and get the real transaction hash
+        const batchResult = await monadGameService.submitMovesBatch(movesBatch);
+        const txHash = batchResult.txHash;
+        const blockNumber = batchResult.blockNumber;
 
-        // Update transaction status
+        // Set the current transaction with real data
+        setCurrentTransaction({
+            txHash,
+            description: playerWon ? 'Recording victory on chain' : playerWon === false ? 'Recording defeat on chain' : 'Recording draw on chain',
+            blockNumber: blockNumber
+        });
+
+        // Update transaction status with real data
         const newTransaction: Transaction = {
             txHash,
             status: 'confirmed',
-            blockNumber: blockchainStats.currentBlockHeight + 1,
+            blockNumber: blockNumber,
             timestamp: Date.now(),
             description: playerWon
                 ? 'Victory recorded on MONAD blockchain'
@@ -1134,20 +1165,48 @@ const Game = () => {
 
         setTransactions(prev => [newTransaction, ...prev].slice(0, 5));
 
+        // Update the toast with the real transaction hash
+        toast.success("Game results recorded on MONAD blockchain", {
+            id: tempToastId,
+            description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
+        });
+
+        // Add a button to view the transaction in the explorer
+        const explorerUrl = getTransactionExplorerUrl(txHash);
+        toast.success(
+          <div className="flex flex-col space-y-2">
+            <span>View game results on MONAD Explorer</span>
+            <button
+              onClick={() => {
+                console.log('Opening explorer URL:', explorerUrl);
+                window.open(explorerUrl, '_blank');
+              }}
+              className="text-xs bg-emerald-900/50 hover:bg-emerald-800/50 text-emerald-400 py-1 px-2 rounded flex items-center justify-center"
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Open Explorer
+            </button>
+          </div>,
+          {
+            duration: 5000,
+          }
+        );
+
         // Award shards
         if (playerWon) {
             const shardReward = getShardReward();
 
-            // Submit game result and claim shards
-            await monadGameService.claimShards(movesBatch.batchId, gameResult);
+            // Submit game result and claim shards - get real transaction data
+            const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
+            const shardTxHash = shardResult.txHash;
+            const shardBlockNumber = shardResult.blockNumber;
 
-            // Add shard transaction
-            const shardTxHash = `0x${Math.random().toString(16).substring(2, 42)}`;
+            // Add shard transaction with real data
             const shardTransaction: Transaction = {
                 txHash: shardTxHash,
                 status: 'confirmed',
-                blockNumber: blockchainStats.currentBlockHeight + 2,
-                timestamp: Date.now() + 2000,
+                blockNumber: shardBlockNumber,
+                timestamp: Date.now(),
                 description: `Claimed ${shardReward} MONAD shards as reward`
             };
 
@@ -1159,15 +1218,31 @@ const Game = () => {
             toast.success(`Earned ${shardReward} MONAD shards!`, {
                 description: "Shards added to your inventory"
             });
+
+            // Add a button to view the shard transaction in the explorer
+            const shardExplorerUrl = getTransactionExplorerUrl(shardTxHash);
+            toast.success(
+              <div className="flex flex-col space-y-2">
+                <span>View shard claim on MONAD Explorer</span>
+                <button
+                  onClick={() => {
+                    console.log('Opening explorer URL:', shardExplorerUrl);
+                    window.open(shardExplorerUrl, '_blank');
+                  }}
+                  className="text-xs bg-amber-900/50 hover:bg-amber-800/50 text-amber-400 py-1 px-2 rounded flex items-center justify-center"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Open Explorer
+                </button>
+              </div>,
+              {
+                duration: 5000,
+              }
+            );
         }
 
         setIsTransactionPending(false);
         setCurrentTransaction(null);
-
-        toast.success("Game results recorded on MONAD blockchain", {
-            id: txHash,
-            description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
-        });
 
     } catch (error) {
         console.error("Failed to record game result:", error);
@@ -1261,15 +1336,36 @@ const Game = () => {
                         toast.loading("Registering player on Monad blockchain...", { id: toastId });
 
                         try {
-                            // Call the service to register the player
-                            // The service now has built-in timeout handling
-                            await monadGameService.registerPlayer();
+                            // Call the service to register the player - get the real transaction hash
+                            const result = await monadGameService.registerPlayer();
+                            const txHash = result.txHash;
 
                             // Registration successful
                             toast.success("Successfully registered!", {
                                 id: toastId,
-                                description: "Welcome to Monad Chain Game"
+                                description: `Transaction hash: ${txHash.substring(0, 6)}...${txHash.substring(txHash.length - 4)}`
                             });
+
+                            // Add a button to view the transaction in the explorer
+                            const explorerUrl = getTransactionExplorerUrl(txHash);
+                            toast.success(
+                              <div className="flex flex-col space-y-2">
+                                <span>View registration on MONAD Explorer</span>
+                                <button
+                                  onClick={() => {
+                                    console.log('Opening explorer URL:', explorerUrl);
+                                    window.open(explorerUrl, '_blank');
+                                  }}
+                                  className="text-xs bg-emerald-900/50 hover:bg-emerald-800/50 text-emerald-400 py-1 px-2 rounded flex items-center justify-center"
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                  Open Explorer
+                                </button>
+                              </div>,
+                              {
+                                duration: 5000,
+                              }
+                            );
 
                             // Update the UI state
                             setIsRegistered(true);

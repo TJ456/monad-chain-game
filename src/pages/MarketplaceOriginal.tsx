@@ -1,4 +1,3 @@
-
 // Copy the original Marketplace component here with fixed property access
 import React, { useState } from 'react';
 import Navigation from '@/components/Navigation';
@@ -23,8 +22,8 @@ const MarketplaceOriginal: React.FC<MarketplaceProps> = ({ listings, currentPlay
     if (!activeListing) return;
     
     if (currentPlayer.tokens < activeListing.price) {
-      toast.error("Insufficient MONDO tokens", {
-        description: `You need ${activeListing.price} MONDO tokens to purchase this card.`
+      toast.error("Insufficient MONAD tokens", {
+        description: `You need ${activeListing.price} MONAD tokens to purchase this card.`
       });
       return;
     }
@@ -67,7 +66,7 @@ const MarketplaceOriginal: React.FC<MarketplaceProps> = ({ listings, currentPlay
           <div className="flex items-center space-x-2">
             <div className="bg-black/40 px-4 py-2 rounded-lg flex items-center">
               <span className="text-white mr-2">Your Balance:</span>
-              <span className="text-indigo-400 font-bold">{currentPlayer.tokens} MONDO</span>
+              <span className="text-indigo-400 font-bold">{currentPlayer.tokens} MONAD</span>
             </div>
           </div>
         </div>
@@ -92,7 +91,7 @@ const MarketplaceOriginal: React.FC<MarketplaceProps> = ({ listings, currentPlay
                 <div className="mt-4">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-white font-medium">{listing.card.name}</span>
-                    <span className="text-indigo-400 font-bold">{listing.price} MONDO</span>
+                    <span className="text-indigo-400 font-bold">{listing.price} MONAD</span>
                   </div>
                   
                   <Button 
@@ -145,14 +144,14 @@ const MarketplaceOriginal: React.FC<MarketplaceProps> = ({ listings, currentPlay
             <div className="bg-black/20 p-3 rounded">
               <div className="text-sm text-gray-400">Price</div>
               <div className="text-lg font-bold text-indigo-400">
-                {activeListing?.price} MONDO
+                {activeListing?.price} MONAD
               </div>
             </div>
             
             <div className="bg-black/20 p-3 rounded">
               <div className="text-sm text-gray-400">Your Balance</div>
               <div className="text-lg font-bold text-indigo-400">
-                {currentPlayer.tokens} MONDO
+                {currentPlayer.tokens} MONAD
               </div>
             </div>
           </div>

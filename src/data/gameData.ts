@@ -132,7 +132,7 @@ export const cards: Card[] = [
     id: "card-6",
     name: "Monad Chainlink",
     description: "Connect to another player's blockchain",
-    image: "/mondo-chainlink.png",
+    image: "/monad-chainlink.png",
     rarity: CardRarity.LEGENDARY,
     type: CardType.UTILITY,
     mana: 5,

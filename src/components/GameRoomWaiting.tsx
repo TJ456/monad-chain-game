@@ -5,6 +5,7 @@ import { GameRoom } from '@/types/game';
 import { Copy, Users, ArrowRight, Loader2, Clock, ExternalLink, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import GameChat from './GameChat';
+import { getTransactionExplorerUrl, getBlockExplorerUrl, truncateHash } from '@/utils/blockchain';
 
 interface GameRoomWaitingProps {
   room: GameRoom;
@@ -192,20 +193,22 @@ const GameRoomWaiting: React.FC<GameRoomWaitingProps> = ({
               <div className="flex justify-between">
                 <span>Transaction Hash:</span>
                 <a
-                  href="#"
+                  href={getTransactionExplorerUrl(room.transactionHash || '')}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-blue-400 font-mono flex items-center"
-                  onClick={(e) => e.preventDefault()}
                 >
-                  {`${room.transactionHash?.substring(0, 10)}...${room.transactionHash?.substring((room.transactionHash?.length || 0) - 8)}`}
+                  {truncateHash(room.transactionHash || '', 10, 8)}
                   <ExternalLink className="h-3 w-3 ml-1" />
                 </a>
               </div>
               <div className="flex justify-between">
                 <span>Block Number:</span>
                 <a
-                  href="#"
+                  href={getBlockExplorerUrl(room.blockNumber || 0)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-blue-400 font-mono flex items-center"
-                  onClick={(e) => e.preventDefault()}
                 >
                   {room.blockNumber}
                   <ExternalLink className="h-3 w-3 ml-1" />

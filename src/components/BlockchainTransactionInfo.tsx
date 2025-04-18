@@ -1,8 +1,8 @@
 import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Loader2, ExternalLink, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ExternalLink, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { getTransactionExplorerUrl, truncateHash as truncateHashUtil } from '@/utils/blockchain';
 
 export interface Transaction {
   txHash: string;
@@ -46,13 +46,12 @@ const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
   };
 
   const truncateHash = (hash: string) => {
-    if (!hash) return '';
-    return `${hash.substring(0, 6)}...${hash.substring(hash.length - 4)}`;
+    return truncateHashUtil(hash);
   };
 
   const getExplorerUrl = (txHash: string) => {
-    // Replace with actual Monad explorer URL when available
-    return `https://explorer.monad.network/tx/${txHash}`;
+    console.log('Opening explorer URL for transaction:', txHash);
+    return getTransactionExplorerUrl(txHash);
   };
 
   if (!isConnected) {
@@ -74,13 +73,13 @@ const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
       {transactions.length > 0 ? (
         <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
           {transactions.map((tx, index) => (
-            <div 
-              key={index} 
+            <div
+              key={index}
               className={`text-xs p-2 rounded-md flex items-center justify-between ${
-                tx.status === 'pending' 
-                  ? 'bg-amber-950/30 border border-amber-500/30' 
-                  : tx.status === 'confirmed' 
-                  ? 'bg-emerald-950/30 border border-emerald-500/30' 
+                tx.status === 'pending'
+                  ? 'bg-amber-950/30 border border-amber-500/30'
+                  : tx.status === 'confirmed'
+                  ? 'bg-emerald-950/30 border border-emerald-500/30'
                   : 'bg-red-950/30 border border-red-500/30'
               }`}
             >
@@ -100,24 +99,24 @@ const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
                         <div className="grid grid-cols-3 gap-1 text-xs">
                           <span className="text-gray-400">Hash:</span>
                           <span className="col-span-2 text-white break-all">{tx.txHash}</span>
-                          
+
                           <span className="text-gray-400">Status:</span>
                           <span className="col-span-2 capitalize">{tx.status}</span>
-                          
+
                           {tx.blockNumber && (
                             <>
                               <span className="text-gray-400">Block:</span>
                               <span className="col-span-2">{tx.blockNumber}</span>
                             </>
                           )}
-                          
+
                           {tx.timestamp && (
                             <>
                               <span className="text-gray-400">Time:</span>
                               <span className="col-span-2">{formatTimestamp(tx.timestamp)}</span>
                             </>
                           )}
-                          
+
                           {tx.gasUsed && (
                             <>
                               <span className="text-gray-400">Gas Used:</span>
@@ -130,10 +129,10 @@ const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              
-              <a 
-                href={getExplorerUrl(tx.txHash)} 
-                target="_blank" 
+
+              <a
+                href={getExplorerUrl(tx.txHash)}
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-emerald-400 hover:text-emerald-300"
               >

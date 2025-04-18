@@ -1,5 +1,6 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
+import { getTransactionExplorerUrl, getBlockExplorerUrl } from '@/utils/blockchain';
 
 interface TransactionLoaderProps {
   isLoading: boolean;
@@ -26,23 +27,40 @@ const TransactionLoader: React.FC<TransactionLoaderProps> = ({
             </div>
             <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 animate-ping"></div>
           </div>
-          
+
           <h3 className="text-lg font-bold text-white mb-2">Monad Transaction</h3>
           <p className="text-gray-300 text-center mb-4">{message}</p>
-          
+
           {txHash && (
             <div className="bg-black/50 rounded p-2 w-full mb-3">
               <div className="text-xs text-gray-400">Transaction Hash:</div>
-              <div className="text-xs text-emerald-400 font-mono break-all">{txHash}</div>
+              <a
+                href={getTransactionExplorerUrl(txHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-emerald-400 font-mono break-all hover:text-emerald-300 flex items-center"
+              >
+                {txHash}
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </a>
             </div>
           )}
-          
+
           {blockNumber && (
-            <div className="text-xs text-gray-400">
-              Current Block: <span className="text-emerald-400">{blockNumber}</span>
+            <div className="text-xs text-gray-400 flex items-center justify-center">
+              Current Block:
+              <a
+                href={getBlockExplorerUrl(blockNumber)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-400 hover:text-emerald-300 ml-1 flex items-center"
+              >
+                {blockNumber}
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </a>
             </div>
           )}
-          
+
           <div className="mt-4 flex items-center space-x-2">
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
