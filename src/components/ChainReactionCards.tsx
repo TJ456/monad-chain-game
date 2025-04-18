@@ -8,15 +8,15 @@ import { monadGameService } from '../services/MonadGameService';
 
 const ChainReactionCards = () => {
   const [isTriggering, setIsTriggering] = useState(false);
-  
+
   const triggerChainReaction = async () => {
     setIsTriggering(true);
-    
+
     try {
       toast.loading("Initiating smart contract event...", {
         id: "chain-reaction"
       });
-      
+
       // Create a special card for the chain reaction
       await monadGameService.mintCard({
         name: "Blockchain Hack",
@@ -28,7 +28,7 @@ const ChainReactionCards = () => {
         mana: 7,
         special: 85 // Success rate
       });
-      
+
       toast.success("Chain Reaction Complete!", {
         id: "chain-reaction",
         description: "Blockchain Hack stole 1 NFT from opponent's wallet"
@@ -41,9 +41,9 @@ const ChainReactionCards = () => {
       setIsTriggering(false);
     }
   };
-  
+
   return (
-    <Card className="glassmorphism border-purple-500/30 p-6">
+    <Card className="glassmorphism border-purple-500/30 p-6 h-full flex flex-col min-h-[600px] feature-box relative">
       <div className="flex items-center space-x-4 mb-6">
         <div className="h-10 w-10 rounded-full bg-purple-500/30 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -56,8 +56,8 @@ const ChainReactionCards = () => {
         </div>
         <Badge className="ml-auto bg-purple-600 text-white">Exclusive</Badge>
       </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
         <div className="bg-black/30 p-4 rounded-lg border border-purple-500/20">
           <h4 className="text-white font-medium mb-2">Blockchain Hack</h4>
           <p className="text-sm text-gray-400 mb-3">
@@ -67,7 +67,7 @@ const ChainReactionCards = () => {
             <span>Mana Cost: 7</span>
             <span>Success Rate: 85%</span>
           </div>
-          <Button 
+          <Button
             className="w-full mt-3 bg-gradient-to-r from-purple-600 to-pink-600"
             size="sm"
             disabled={isTriggering}
@@ -76,7 +76,7 @@ const ChainReactionCards = () => {
             {isTriggering ? "Processing..." : "Trigger Example"}
           </Button>
         </div>
-        
+
         <div className="bg-black/30 p-4 rounded-lg border border-purple-500/20">
           <h4 className="text-white font-medium mb-2">Airdrop Strike</h4>
           <p className="text-sm text-gray-400 mb-3">
@@ -86,7 +86,7 @@ const ChainReactionCards = () => {
             <span>Mana Cost: 5</span>
             <span>Token Quality: 1-100</span>
           </div>
-          <Button 
+          <Button
             className="w-full mt-3 bg-gradient-to-r from-purple-600 to-pink-600"
             size="sm"
             variant="outline"
@@ -95,7 +95,7 @@ const ChainReactionCards = () => {
           </Button>
         </div>
       </div>
-      
+
       <div className="mt-6 bg-purple-900/20 p-4 rounded-lg border border-purple-500/20">
         <h4 className="text-white font-medium">How It Works</h4>
         <div className="flex items-center mt-2">
