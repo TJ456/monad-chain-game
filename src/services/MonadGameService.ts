@@ -24,17 +24,9 @@ export class MonadGameService {
       this.signer = this.provider.getSigner();
       this.walletAddress = await this.signer.getAddress();
 
-      console.log('Connected wallet address:', this.walletAddress);
-
-      // Check if this is the specific address mentioned in the issue
-      if (this.walletAddress === '0x7D77a2CDa23C712B98cD0FcD5c38F22A11ACA556') {
-        console.log('Found the specific wallet address that was having issues');
-      }
-
       const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
       const currentNetwork = await this.provider.getNetwork();
 
-      console.log('Current network:', currentNetwork.chainId, 'Required network:', requiredNetwork, parseInt(requiredNetwork, 16));
       if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
         try {
           await window.ethereum.request({
@@ -64,7 +56,6 @@ export class MonadGameService {
       this.isConnected = true;
       return this.walletAddress;
     } catch (error) {
-      console.error('Error connecting wallet:', error);
       this.resetState();
       throw error;
     }
