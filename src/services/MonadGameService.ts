@@ -9,6 +9,19 @@ export class MonadGameService {
   private monadGameContract: ethers.Contract | null = null;
   private isConnected: boolean = false;
 
+  // Monad Testnet Configuration
+  private readonly MONAD_TESTNET_CONFIG = {
+    chainId: '0x1a4', // 420 in decimal
+    chainName: 'Monad Testnet',
+    nativeCurrency: {
+      name: 'MONAD',
+      symbol: 'MONAD',
+      decimals: 18
+    },
+    rpcUrls: ['https://rpc.monad.xyz/testnet'],
+    blockExplorerUrls: ['https://explorer.monad.xyz/testnet']
+  };
+
   async connectWallet(): Promise<string> {
     if (this.isConnected && this.walletAddress) {
       return this.walletAddress;
@@ -19,46 +32,94 @@ export class MonadGameService {
     }
 
     try {
-      this.provider = new Web3Provider(window.ethereum);
+      // Enable the provider and get accounts
+      this.provider = new Web3Provider(window.ethereum, 'any');
       await this.provider.send("eth_requestAccounts", []);
+      
+      // Get signer and address
       this.signer = this.provider.getSigner();
       this.walletAddress = await this.signer.getAddress();
 
-      const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
-      const currentNetwork = await this.provider.getNetwork();
+      console.log('Connected wallet address:', this.walletAddress);
 
-      if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: requiredNetwork }],
-          });
-        } catch (switchError: any) {
-          if (switchError.code === 4902) {
-            throw new Error(`Please add the ${import.meta.env.VITE_NETWORK_NAME} network to your wallet`);
-          }
-          throw switchError;
-        }
-      }
+      // Handle network switching/adding
+      await this.ensureCorrectNetwork();
 
-      const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
-      if (!contractAddress) {
-        throw new Error("Monad contract address not configured");
-      }
-
-      const contractABI = (await import('../contracts/MonadGame.json')).default.abi;
-      this.monadGameContract = new ethers.Contract(
-        contractAddress,
-        contractABI,
-        this.signer
-      );
+      // Initialize contract after ensuring correct network
+      await this.initializeContract();
 
       this.isConnected = true;
       return this.walletAddress;
     } catch (error) {
+      console.error('Error connecting wallet:', error);
       this.resetState();
       throw error;
     }
+  }
+
+  private async ensureCorrectNetwork(): Promise<void> {
+    if (!this.provider) throw new Error("Provider not initialized");
+
+    const currentNetwork = await this.provider.getNetwork();
+    const requiredChainId = this.MONAD_TESTNET_CONFIG.chainId;
+    const requiredChainIdHex = requiredChainId.startsWith('0x') ? requiredChainId : `0x${parseInt(requiredChainId).toString(16)}`;
+
+    console.log('Current network:', currentNetwork.chainId, 'Required network:', parseInt(requiredChainIdHex, 16));
+
+    if (currentNetwork.chainId !== parseInt(requiredChainIdHex, 16)) {
+      try {
+        // First try to switch to the network
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: requiredChainIdHex }],
+        });
+      } catch (switchError: any) {
+        // If the network is not added (error code 4902), add it
+        if (switchError.code === 4902) {
+          try {
+            console.log('Adding Monad network to MetaMask...');
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                ...this.MONAD_TESTNET_CONFIG,
+                chainId: requiredChainIdHex
+              }],
+            });
+          } catch (addError: any) {
+            console.error('Failed to add Monad Testnet:', addError);
+            throw new Error(`Failed to add Monad Testnet: ${addError.message}`);
+          }
+        } else {
+          console.error('Failed to switch network:', switchError);
+          throw new Error(`Failed to switch to Monad network: ${switchError.message}`);
+        }
+      }
+
+      // Verify the connection after switching/adding network
+      const verifyNetwork = await this.provider.getNetwork();
+      if (verifyNetwork.chainId !== parseInt(requiredChainIdHex, 16)) {
+        throw new Error('Failed to connect to Monad Testnet. Please try again.');
+      }
+    }
+  }
+
+  private async initializeContract(): Promise<void> {
+    if (!this.signer) throw new Error("Signer not initialized");
+
+    const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
+    if (!contractAddress) {
+      throw new Error("Monad contract address not configured");
+    }
+
+    // Ensure the contract address is properly formatted
+    const formattedAddress = ethers.utils.getAddress(contractAddress);
+    const contractABI = (await import('../contracts/MonadGame.json')).default.abi;
+    
+    this.monadGameContract = new ethers.Contract(
+      formattedAddress,
+      contractABI,
+      this.signer
+    );
   }
 
   private resetState() {

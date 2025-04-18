@@ -5,24 +5,28 @@ declare global {
     ethereum?: {
       isMetaMask?: boolean;
       request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on?: (event: string, listener: (...args: any[]) => void) => void;
+      removeListener?: (event: string, listener: (...args: any[]) => void) => void;
     };
   }
 }
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Link, useNavigate } from 'react-router-dom';
 import { currentPlayer } from '@/data/gameData';
-import { ethers } from "ethers";
-import { Web3Provider } from "@ethersproject/providers";
+import { monadGameService } from '@/services/MonadGameService';
 
 const Navigation: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const handleConnectWallet = async () => {
+    if (isConnecting) return;
+
     if (!window.ethereum) {
       toast({
         title: "MetaMask Not Found",
@@ -33,47 +37,20 @@ const Navigation: React.FC = () => {
     }
 
     try {
-      const provider = new Web3Provider(window.ethereum);
-      await provider.send("eth_requestAccounts", []); // Request wallet connection
-      const signer = provider.getSigner();
-      const address = await signer.getAddress();
-
-      // Validate the network
-      const requiredNetwork = import.meta.env.VITE_NETWORK_ID;
-      const requiredNetworkName = import.meta.env.VITE_NETWORK_NAME;
-      const currentNetwork = await provider.getNetwork();
+      setIsConnecting(true);
       
-      if (currentNetwork.chainId !== parseInt(requiredNetwork, 16)) {
-        // Show network switch dialog
-        try {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: requiredNetwork }],
-          });
-        } catch (switchError: any) {
-          // If the chain hasn't been added to MetaMask
-          if (switchError.code === 4902) {
-            toast({
-              title: "Network Not Found",
-              description: `Please add the ${requiredNetworkName} network to your wallet.`,
-              variant: "destructive",
-            });
-            return;
-          }
-          throw switchError;
-        }
-      }
-
-      // Update state and currentPlayer
+      // Use the MonadGameService to handle wallet connection
+      const address = await monadGameService.connectWallet();
+      
       setIsWalletConnected(true);
       currentPlayer.monadAddress = address;
 
-      // Show success toast
       toast({
         title: "Wallet Connected",
-        description: `Connected to ${requiredNetworkName}`,
+        description: "Successfully connected to Monad Testnet",
         variant: "default",
       });
+
     } catch (error: any) {
       console.error("Wallet connection error:", error);
 
@@ -89,15 +66,63 @@ const Navigation: React.FC = () => {
           description: "A connection request is already pending. Please check MetaMask.",
           variant: "destructive",
         });
+      } else if (error.message?.includes('network')) {
+        toast({
+          title: "Network Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else if (error.message?.includes('add')) {
+        toast({
+          title: "Network Configuration Error",
+          description: "Failed to add Monad network. Please try adding it manually or check your connection.",
+          variant: "destructive",
+        });
       } else {
         toast({
           title: "Connection Failed",
-          description: error.message || "Failed to connect wallet. Please try again.",
+          description: "Failed to connect to Monad network. Please try again.",
           variant: "destructive",
         });
       }
+    } finally {
+      setIsConnecting(false);
     }
   };
+
+  // Add network change listener
+  useEffect(() => {
+    if (window.ethereum) {
+      const handleChainChanged = () => {
+        // Reload the page when the chain changes
+        window.location.reload();
+      };
+
+      const handleAccountsChanged = (accounts: string[]) => {
+        if (accounts.length === 0) {
+          // User disconnected their wallet
+          setIsWalletConnected(false);
+          currentPlayer.monadAddress = null;
+          toast({
+            title: "Wallet Disconnected",
+            description: "Your wallet has been disconnected.",
+            variant: "destructive",
+          });
+        } else {
+          // Account changed
+          currentPlayer.monadAddress = accounts[0];
+        }
+      };
+
+      window.ethereum.on('chainChanged', handleChainChanged);
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+
+      return () => {
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
+  }, []);
 
   return (
     <nav className="fixed top-0 w-full z-50 glassmorphism">
@@ -145,8 +170,9 @@ const Navigation: React.FC = () => {
                 <Button
                   className="bg-gradient-to-r from-mondo-purple to-mondo-blue text-white"
                   onClick={handleConnectWallet}
+                  disabled={isConnecting}
                 >
-                  Connect Wallet
+                  {isConnecting ? "Connecting..." : "Connect Wallet"}
                 </Button>
               )}
             </div>
