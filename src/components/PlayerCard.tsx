@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Player, MonadTransaction } from "@/types/game";
@@ -27,12 +26,12 @@ const PlayerCard: React.FC<PlayerCardProps> = ({ player, rank }) => {
   };
 
   return (
-    <Card className="glassmorphism border-mondo-purple/30 overflow-hidden transition-all duration-300 hover:border-mondo-purple/70">
+    <Card className="glassmorphism border-monad-purple/30 overflow-hidden transition-all duration-300 hover:border-monad-purple/70">
       <CardContent className="p-6">
         <div className="flex items-center gap-4">
           {/* Rank number if provided */}
           {rank !== undefined && (
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-mondo-purple/20 flex items-center justify-center text-mondo-purple font-bold">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-monad-purple/20 flex items-center justify-center text-monad-purple font-bold">
               {rank + 1}
             </div>
           )}

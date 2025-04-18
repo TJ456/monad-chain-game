@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/websocket-server.js"
   },
   "dependencies": {
     "@ethersproject/providers": "^5.8.0",
@@ -71,8 +72,8 @@
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.175.0",
-    "typescript": "^4.9.5",
     "vaul": "^0.9.3",
+    "ws": "^8.18.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -87,6 +88,7 @@
     "@types/react-dom": "^18.3.0",
     "@types/three": "^0.175.0",
     "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "autoprefixer": "^10.4.20",
     "chai": "^5.2.0",
@@ -100,6 +102,8 @@
     "lovable-tagger": "^1.1.7",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
     "typescript-eslint": "^8.0.1",
     "vite": "^5.4.1"
   }

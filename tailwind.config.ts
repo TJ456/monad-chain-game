@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -63,7 +62,7 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				mondo: {
+				monad: {
 					purple: '#6D28D9',
 					blue: '#2563EB',
 					cyan: '#06B6D4',

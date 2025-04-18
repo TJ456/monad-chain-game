@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { GameRoom } from '@/types/game';
 import { ArrowRight, Loader2, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { getTransactionExplorerUrl, getBlockExplorerUrl, truncateHash } from '@/utils/blockchain';
 
 interface GameRoomJoinerProps {
   onRoomJoined: (room: GameRoom) => void;
@@ -14,8 +15,8 @@ interface GameRoomJoinerProps {
   username: string;
 }
 
-const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({ 
-  onRoomJoined, 
+const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
+  onRoomJoined,
   onBack,
   walletAddress,
   username
@@ -35,7 +36,7 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
 
     // Check if the room code is in the correct format (6 alphanumeric characters)
     const isValid = /^[A-Z0-9]{6}$/.test(roomCode);
-    
+
     if (!isValid) {
       toast.error("Invalid room code format", {
         description: "Room code should be 6 alphanumeric characters"
@@ -50,14 +51,14 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
     if (!validateRoomCode()) return;
 
     setIsValidatingCode(true);
-    
+
     try {
       // Simulate API call to check if room exists
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       // For demo purposes, we'll assume the room exists if the code is valid format
       setIsCodeValid(true);
-      
+
       toast.success("Room found!", {
         description: "You can now join this game room"
       });
@@ -74,18 +75,18 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
     if (!validateRoomCode()) return;
 
     setIsJoining(true);
-    
+
     try {
       // Simulate blockchain transaction
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       // Simulate transaction hash and block number
       const txHash = `0x${Math.random().toString(16).substring(2, 42)}`;
       const blockNum = Math.floor(Math.random() * 1000000) + 8000000;
-      
+
       setTransactionHash(txHash);
       setBlockNumber(blockNum);
-      
+
       // Create the room object
       const joinedRoom: GameRoom = {
         id: `room-${Date.now()}`,
@@ -100,10 +101,10 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
         transactionHash: txHash,
         blockNumber: blockNum
       };
-      
+
       // Notify parent component
       onRoomJoined(joinedRoom);
-      
+
       toast.success("Joined game room!", {
         description: `Connected to room ${roomCode}`,
       });
@@ -121,7 +122,7 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
         <CardTitle className="text-white">Join Game Room</CardTitle>
         <CardDescription>Enter a room code to join a friend's game</CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="roomCode">Room Code</Label>
@@ -135,8 +136,8 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
               maxLength={6}
               disabled={isJoining}
             />
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={checkRoomCode}
               disabled={isValidatingCode || isJoining || !roomCode.trim()}
               className="border-blue-500/30 text-blue-400"
@@ -148,38 +149,40 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
               )}
             </Button>
           </div>
-          
+
           {isCodeValid === true && (
             <p className="text-xs text-green-400 mt-1">Room found! You can now join.</p>
           )}
-          
+
           {isCodeValid === false && (
             <p className="text-xs text-red-400 mt-1">Room not found. Please check the code.</p>
           )}
         </div>
-        
+
         {transactionHash && (
           <div className="mt-4 p-4 border border-blue-500/30 rounded-lg bg-blue-900/10">
             <h3 className="text-sm font-semibold text-white mb-2">Transaction Details</h3>
-            
+
             <div className="space-y-2 text-xs text-gray-500">
               <div className="flex justify-between">
                 <span>Transaction Hash:</span>
-                <a 
-                  href="#" 
+                <a
+                  href={getTransactionExplorerUrl(transactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-blue-400 font-mono flex items-center"
-                  onClick={(e) => e.preventDefault()}
                 >
-                  {`${transactionHash.substring(0, 10)}...${transactionHash.substring(transactionHash.length - 8)}`}
+                  {truncateHash(transactionHash, 10, 8)}
                   <ExternalLink className="h-3 w-3 ml-1" />
                 </a>
               </div>
               <div className="flex justify-between">
                 <span>Block Number:</span>
-                <a 
-                  href="#" 
+                <a
+                  href={getBlockExplorerUrl(blockNumber)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-blue-400 font-mono flex items-center"
-                  onClick={(e) => e.preventDefault()}
                 >
                   {blockNumber}
                   <ExternalLink className="h-3 w-3 ml-1" />
@@ -192,17 +195,17 @@ const GameRoomJoiner: React.FC<GameRoomJoinerProps> = ({
           </div>
         )}
       </CardContent>
-      
+
       <CardFooter className="flex justify-between">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={onBack}
           disabled={isJoining}
         >
           Back
         </Button>
-        
-        <Button 
+
+        <Button
           onClick={joinRoom}
           disabled={isJoining || !isCodeValid}
           className="bg-gradient-to-r from-blue-400 to-indigo-500"

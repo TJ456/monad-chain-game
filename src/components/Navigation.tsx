@@ -234,145 +234,142 @@ const Navigation: React.FC = () => {
   return (
     <nav className="fixed top-0 w-full z-50 glassmorphism">
       <div className="container mx-auto px-4 py-3">
-        <div className="flex justify-between items-center">
-          {/* Logo Section */}
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-mondo-purple to-mondo-blue pulse-animation"></div>
-            </div>
-            <Link to="/" className="text-2xl font-bold text-white transition-all duration-300 ease-in-out hover:scale-105">
-              MONDO<span className="text-mondo-blue">Chain</span><span className="text-mondo-cyan">Games</span>
-            </Link>
-          </div>
+        <div className="w-full flex items-center justify-between">
+          <Link to="/" className="flex items-center">
+            <span className="text-xl font-bold">
+              MONAD<span className="text-monad-blue">Chain</span><span className="text-monad-cyan">Games</span>
+            </span>
+          </Link>
+          <div className="flex justify-between items-center">
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center space-x-6">
+              <Link to="/game" className={`nav-link text-white hover:text-monad-blue transition-colors ${location.pathname === "/game" ? "active font-medium text-monad-cyan" : ""}`}>
+                Play Game
+              </Link>
+              <Link to="/tournament" className={`nav-link text-white hover:text-monad-blue transition-colors ${location.pathname === "/tournament" ? "active font-medium text-monad-cyan" : ""}`}>
+                Tournaments
+              </Link>
+              <Link to="/marketplace" className={`nav-link text-white hover:text-monad-blue transition-colors ${location.pathname === "/marketplace" ? "active font-medium text-monad-cyan" : ""}`}>
+                Marketplace
+              </Link>
+              <Link to="/leaderboard" className={`nav-link text-white hover:text-monad-blue transition-colors ${location.pathname === "/leaderboard" ? "active font-medium text-monad-cyan" : ""}`}>
+                Leaderboard
+              </Link>
+              <div className="h-4 w-px bg-gray-600"></div>
 
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-6">
-            <Link to="/game" className={`nav-link text-white hover:text-mondo-blue transition-colors ${location.pathname === "/game" ? "active font-medium text-mondo-cyan" : ""}`}>
-              Play Game
-            </Link>
-            <Link to="/tournament" className={`nav-link text-white hover:text-mondo-blue transition-colors ${location.pathname === "/tournament" ? "active font-medium text-mondo-cyan" : ""}`}>
-              Tournaments
-            </Link>
-            <Link to="/marketplace" className={`nav-link text-white hover:text-mondo-blue transition-colors ${location.pathname === "/marketplace" ? "active font-medium text-mondo-cyan" : ""}`}>
-              Marketplace
-            </Link>
-            <Link to="/leaderboard" className={`nav-link text-white hover:text-mondo-blue transition-colors ${location.pathname === "/leaderboard" ? "active font-medium text-mondo-cyan" : ""}`}>
-              Leaderboard
-            </Link>
-            <div className="h-4 w-px bg-gray-600"></div>
-
-            {/* Wallet Connection Section */}
-            <div className="flex items-center space-x-2">
-              <div className="text-mondo-cyan font-medium">
-                {currentPlayer.monad} MONDO
+              {/* Wallet Connection Section */}
+              <div className="flex items-center space-x-2">
+                <div className="text-monad-cyan font-medium">
+                  {currentPlayer.monad} MONAD
+                </div>
+                {isWalletConnected ? (
+                  <Button
+                    variant="outline"
+                    className="border-monad-blue text-monad-blue hover:bg-monad-blue/20 transition-all duration-300 ease-in-out transform hover:scale-105"
+                    onClick={() => navigate("/profile")}
+                  >
+                    {currentPlayer.monadAddress?.substring(0, 6)}...
+                    {currentPlayer.monadAddress?.substring(currentPlayer.monadAddress.length - 4)}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      className="bg-gradient-to-r from-monad-purple to-monad-blue text-white transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-glow"
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                    >
+                      {isConnecting ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Connecting
+                        </span>
+                      ) : (
+                        "Connect Wallet"
+                      )}
+                    </Button>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-monad-blue hover:bg-monad-blue/10 transition-all duration-300 ease-in-out"
+                        onClick={handleManualNetworkConfig}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </Button>
+                      <div className="absolute right-0 mt-2 w-48 opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
+                        <div className="bg-black/90 border border-monad-blue/30 rounded-md shadow-lg p-2 text-xs text-white">
+                          <p>Network Setup Guide</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              {isWalletConnected ? (
-                <Button
-                  variant="outline"
-                  className="border-mondo-blue text-mondo-blue hover:bg-mondo-blue/20 transition-all duration-300 ease-in-out transform hover:scale-105"
-                  onClick={() => navigate("/profile")}
-                >
-                  {currentPlayer.monadAddress?.substring(0, 6)}...
-                  {currentPlayer.monadAddress?.substring(currentPlayer.monadAddress.length - 4)}
-                </Button>
-              ) : (
+            </div>
+
+            {/* Mobile Menu */}
+            <div className="md:hidden flex items-center space-x-2">
+              {!isWalletConnected && (
                 <div className="flex items-center gap-2">
                   <Button
-                    className="bg-gradient-to-r from-mondo-purple to-mondo-blue text-white transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-glow"
+                    size="sm"
+                    className="bg-gradient-to-r from-monad-purple to-monad-blue text-white text-xs transition-all duration-300 ease-in-out"
                     onClick={handleConnectWallet}
                     disabled={isConnecting}
                   >
                     {isConnecting ? (
                       <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Connecting
+                        Connect
                       </span>
                     ) : (
-                      "Connect Wallet"
+                      "Connect"
                     )}
                   </Button>
-                  <div className="relative group">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-mondo-blue hover:bg-mondo-blue/10 transition-all duration-300 ease-in-out"
-                      onClick={handleManualNetworkConfig}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                      </svg>
-                    </Button>
-                    <div className="absolute right-0 mt-2 w-48 opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 ease-in-out pointer-events-none group-hover:pointer-events-auto z-50">
-                      <div className="bg-black/90 border border-mondo-blue/30 rounded-md shadow-lg p-2 text-xs text-white">
-                        <p>Network Setup Guide</p>
-                      </div>
-                    </div>
-                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-monad-blue hover:bg-monad-blue/10 transition-all duration-300 ease-in-out h-8 w-8"
+                    onClick={handleManualNetworkConfig}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                  </Button>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Mobile Menu */}
-          <div className="md:hidden flex items-center space-x-2">
-            {!isWalletConnected && (
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  className="bg-gradient-to-r from-mondo-purple to-mondo-blue text-white text-xs transition-all duration-300 ease-in-out"
-                  onClick={handleConnectWallet}
-                  disabled={isConnecting}
-                >
-                  {isConnecting ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Connect
-                    </span>
-                  ) : (
-                    "Connect"
-                  )}
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-mondo-blue hover:bg-mondo-blue/10 transition-all duration-300 ease-in-out h-8 w-8"
-                  onClick={handleManualNetworkConfig}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                </Button>
-              </div>
-            )}
-            <Button
-              variant="ghost"
-              className="text-white transition-all duration-300 ease-in-out hover:bg-white/10 hover:rotate-3"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-transform duration-300 ease-in-out"
+              <Button
+                variant="ghost"
+                className="text-white transition-all duration-300 ease-in-out hover:bg-white/10 hover:rotate-3"
               >
-                <line x1="4" x2="20" y1="12" y2="12" />
-                <line x1="4" x2="20" y1="6" y2="6" />
-                <line x1="4" x2="20" y1="18" y2="18" />
-              </svg>
-            </Button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="transition-transform duration-300 ease-in-out"
+                >
+                  <line x1="4" x2="20" y1="12" y2="12" />
+                  <line x1="4" x2="20" y1="6" y2="6" />
+                  <line x1="4" x2="20" y1="18" y2="18" />
+                </svg>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

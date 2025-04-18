@@ -1,4 +1,3 @@
-
 // Copy the original Leaderboard component here with fixed property access
 import React from 'react';
 import Navigation from '@/components/Navigation';
@@ -18,12 +17,12 @@ const LeaderboardOriginal: React.FC<LeaderboardProps> = ({ players }) => {
       <Navigation />
       <div className="container mx-auto pt-24 px-4 pb-16">
         <h1 className="text-4xl font-bold text-white mb-8">
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-mondo-purple to-mondo-blue">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-monad-purple to-monad-blue">
             Leaderboard
           </span>
         </h1>
         
-        <Card className="glassmorphism border-mondo-purple/30">
+        <Card className="glassmorphism border-monad-purple/30">
           <CardHeader>
             <CardTitle className="text-white">Top Players</CardTitle>
           </CardHeader>
@@ -31,13 +30,13 @@ const LeaderboardOriginal: React.FC<LeaderboardProps> = ({ players }) => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-mondo-blue">Rank</TableHead>
-                  <TableHead className="text-mondo-blue">Player</TableHead>
-                  <TableHead className="text-mondo-blue">Level</TableHead>
-                  <TableHead className="text-mondo-blue">Wins</TableHead>
-                  <TableHead className="text-mondo-blue">Losses</TableHead>
-                  <TableHead className="text-mondo-blue">Win Rate</TableHead>
-                  <TableHead className="text-right text-mondo-blue">MONDO Tokens</TableHead>
+                  <TableHead className="text-monad-blue">Rank</TableHead>
+                  <TableHead className="text-monad-blue">Player</TableHead>
+                  <TableHead className="text-monad-blue">Level</TableHead>
+                  <TableHead className="text-monad-blue">Wins</TableHead>
+                  <TableHead className="text-monad-blue">Losses</TableHead>
+                  <TableHead className="text-monad-blue">Win Rate</TableHead>
+                  <TableHead className="text-right text-monad-blue">MONAD Balance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -56,12 +55,12 @@ const LeaderboardOriginal: React.FC<LeaderboardProps> = ({ players }) => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-mondo-purple to-mondo-blue mr-2"></div>
+                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-monad-purple to-monad-blue mr-2"></div>
                           <span className="text-white">{player.username}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="bg-mondo-purple/20 text-mondo-purple px-2 py-1 rounded-full text-xs">
+                        <span className="bg-monad-purple/20 text-monad-purple px-2 py-1 rounded-full text-xs">
                           Lvl {player.level}
                         </span>
                       </TableCell>
@@ -71,14 +70,14 @@ const LeaderboardOriginal: React.FC<LeaderboardProps> = ({ players }) => {
                         <div className="flex items-center">
                           <div className="w-16 bg-gray-700 rounded-full h-2 mr-2">
                             <div 
-                              className="bg-gradient-to-r from-mondo-purple to-mondo-blue h-2 rounded-full" 
+                              className="bg-gradient-to-r from-monad-purple to-monad-blue h-2 rounded-full" 
                               style={{ width: `${winRate}%` }}
                             ></div>
                           </div>
                           <span className="text-xs text-gray-300">{winRate}%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right text-mondo-cyan font-mono">
+                      <TableCell className="text-right text-monad-cyan font-mono">
                         {player.tokens}
                       </TableCell>
                     </TableRow>

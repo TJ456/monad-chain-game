@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { GameRoom, Card as GameCardType } from '@/types/game';
+import { GameRoom, Card as GameCardType, CardRarity, CardType } from '@/types/game';
 import { Eye, Users, ExternalLink, Clock, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import GameChat from './GameChat';
+import { getTransactionExplorerUrl, getBlockExplorerUrl, truncateHash } from '@/utils/blockchain';
 
 interface SpectatorModeProps {
   onBack: () => void;
@@ -53,7 +54,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
 
     // Check if the room code is in the correct format (6 alphanumeric characters)
     const isValid = /^[A-Z0-9]{6}$/.test(roomCode);
-    
+
     if (!isValid) {
       toast.error("Invalid room code format", {
         description: "Room code should be 6 alphanumeric characters"
@@ -62,11 +63,11 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
     }
 
     setIsJoining(true);
-    
+
     try {
       // Simulate API call to check if room exists
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       // For demo purposes, we'll create a simulated game room and state
       const simulatedRoom: GameRoom = {
         id: `room-${Date.now()}`,
@@ -81,16 +82,16 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
         transactionHash: `0x${Math.random().toString(16).substring(2, 42)}`,
         blockNumber: Math.floor(Math.random() * 1000000) + 8000000
       };
-      
+
       const simulatedGameState: SpectatorGameState = {
         player1: {
           username: "Player1",
           health: 15,
           mana: 7,
           cards: [
-            { id: "card1", name: "Flame Strike", description: "Deal 5 damage", image: "/card1.png", rarity: "rare", type: "attack", attack: 5, mana: 4, monadId: "monad1" },
-            { id: "card2", name: "Ice Shield", description: "Gain 4 defense", image: "/card2.png", rarity: "common", type: "defense", defense: 4, mana: 3, monadId: "monad2" },
-            { id: "card3", name: "Energy Bolt", description: "Deal 3 damage", image: "/card3.png", rarity: "common", type: "attack", attack: 3, mana: 2, monadId: "monad3" }
+            { id: "card1", name: "Flame Strike", description: "Deal 5 damage", image: "/card1.png", rarity: CardRarity.RARE, type: CardType.ATTACK, attack: 5, mana: 4, monadId: "monad1" },
+            { id: "card2", name: "Ice Shield", description: "Gain 4 defense", image: "/card2.png", rarity: CardRarity.COMMON, type: CardType.DEFENSE, defense: 4, mana: 3, monadId: "monad2" },
+            { id: "card3", name: "Energy Bolt", description: "Deal 3 damage", image: "/card3.png", rarity: CardRarity.COMMON, type: CardType.ATTACK, attack: 3, mana: 2, monadId: "monad3" }
           ]
         },
         player2: {
@@ -98,8 +99,8 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
           health: 12,
           mana: 8,
           cards: [
-            { id: "card4", name: "Shadow Strike", description: "Deal 4 damage", image: "/card4.png", rarity: "rare", type: "attack", attack: 4, mana: 3, monadId: "monad4" },
-            { id: "card5", name: "Healing Wave", description: "Restore 3 health", image: "/card5.png", rarity: "common", type: "utility", mana: 2, monadId: "monad5" }
+            { id: "card4", name: "Shadow Strike", description: "Deal 4 damage", image: "/card4.png", rarity: CardRarity.RARE, type: CardType.ATTACK, attack: 4, mana: 3, monadId: "monad4" },
+            { id: "card5", name: "Healing Wave", description: "Restore 3 health", image: "/card5.png", rarity: CardRarity.COMMON, type: CardType.UTILITY, mana: 2, monadId: "monad5" }
           ]
         },
         currentTurn: 'player1',
@@ -111,11 +112,11 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
         ],
         spectatorCount: Math.floor(Math.random() * 5) + 1 // 1-5 spectators
       };
-      
+
       setCurrentRoom(simulatedRoom);
       setGameState(simulatedGameState);
       setLastUpdateTime(Date.now());
-      
+
       toast.success("Joined as spectator!", {
         description: `Watching game in room ${roomCode}`
       });
@@ -129,17 +130,17 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
 
   const refreshGameState = async () => {
     if (!currentRoom) return;
-    
+
     setIsRefreshing(true);
-    
+
     try {
       // Simulate API call to get updated game state
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // For demo purposes, we'll update the simulated game state
       if (gameState) {
         const updatedGameState = { ...gameState };
-        
+
         // Simulate game progress
         if (updatedGameState.currentTurn === 'player1') {
           updatedGameState.currentTurn = 'player2';
@@ -162,16 +163,16 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
             timestamp: Date.now()
           });
         }
-        
+
         // Randomly update spectator count
         if (Math.random() > 0.7) {
           updatedGameState.spectatorCount += Math.random() > 0.5 ? 1 : -1;
           if (updatedGameState.spectatorCount < 1) updatedGameState.spectatorCount = 1;
         }
-        
+
         setGameState(updatedGameState);
         setLastUpdateTime(Date.now());
-        
+
         toast.success("Game state updated", {
           description: "Latest moves have been loaded"
         });
@@ -195,7 +196,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
           <CardTitle className="text-white">Spectator Mode</CardTitle>
           <CardDescription>Watch ongoing games without participating</CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <label className="text-sm text-gray-400">Enter Room Code</label>
@@ -208,7 +209,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
                 maxLength={6}
                 disabled={isJoining}
               />
-              <Button 
+              <Button
                 onClick={handleJoinAsSpectator}
                 disabled={isJoining || !roomCode.trim()}
                 className="bg-gradient-to-r from-purple-500 to-indigo-600"
@@ -224,7 +225,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
               </Button>
             </div>
           </div>
-          
+
           <div className="p-4 border border-purple-500/30 rounded-lg bg-purple-900/10">
             <h3 className="text-md font-semibold text-white mb-2 flex items-center">
               <Eye className="h-4 w-4 mr-2 text-purple-400" />
@@ -250,10 +251,10 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
             </ul>
           </div>
         </CardContent>
-        
+
         <CardFooter>
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={onBack}
             className="w-full"
           >
@@ -287,10 +288,10 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
           </div>
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         <div className="flex space-x-2 border-b border-gray-700 pb-2">
-          <Button 
+          <Button
             variant={spectatorView === 'game' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSpectatorView('game')}
@@ -298,7 +299,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
           >
             Game View
           </Button>
-          <Button 
+          <Button
             variant={spectatorView === 'chat' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSpectatorView('chat')}
@@ -307,8 +308,8 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
             Chat
           </Button>
           <div className="flex-1"></div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={refreshGameState}
             disabled={isRefreshing}
@@ -318,7 +319,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
             Refresh
           </Button>
         </div>
-        
+
         {spectatorView === 'game' ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -342,7 +343,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
                   <span className="text-blue-300">{gameState.player1.mana}</span>
                 </div>
               </div>
-              
+
               <div className="p-3 border border-amber-500/30 rounded-lg bg-amber-900/10">
                 <div className="flex justify-between items-center mb-2">
                   <div className="font-medium text-amber-300">{gameState.player2.username}</div>
@@ -364,7 +365,7 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
                 </div>
               </div>
             </div>
-            
+
             <div className="p-3 border border-gray-700 rounded-lg bg-black/20">
               <h3 className="text-sm font-medium text-white mb-2">Move History</h3>
               <div className="space-y-2 max-h-[200px] overflow-y-auto">
@@ -385,27 +386,29 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
                 ))}
               </div>
             </div>
-            
+
             <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-900/10">
               <h3 className="text-sm font-medium text-white mb-2">Blockchain Details</h3>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Transaction:</span>
-                  <a 
-                    href="#" 
+                  <a
+                    href={getTransactionExplorerUrl(currentRoom.transactionHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-400 font-mono flex items-center"
-                    onClick={(e) => e.preventDefault()}
                   >
-                    {`${currentRoom.transactionHash?.substring(0, 10)}...${currentRoom.transactionHash?.substring((currentRoom.transactionHash?.length || 0) - 8)}`}
+                    {truncateHash(currentRoom.transactionHash, 10, 8)}
                     <ExternalLink className="h-3 w-3 ml-1" />
                   </a>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Block:</span>
-                  <a 
-                    href="#" 
+                  <a
+                    href={getBlockExplorerUrl(currentRoom.blockNumber)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-blue-400 font-mono flex items-center"
-                    onClick={(e) => e.preventDefault()}
                   >
                     {currentRoom.blockNumber}
                     <ExternalLink className="h-3 w-3 ml-1" />
@@ -420,18 +423,18 @@ const SpectatorMode: React.FC<SpectatorModeProps> = ({ onBack, username }) => {
           </div>
         ) : (
           <div className="h-[400px]">
-            <GameChat 
-              roomCode={currentRoom.roomCode} 
+            <GameChat
+              roomCode={currentRoom.roomCode}
               playerName={username}
               opponentName="Spectator Chat"
             />
           </div>
         )}
       </CardContent>
-      
+
       <CardFooter>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={onBack}
           className="w-full"
         >

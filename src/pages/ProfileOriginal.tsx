@@ -1,4 +1,3 @@
-
 // Copy the original Profile component here with fixed property access
 import React from 'react';
 import Navigation from '@/components/Navigation';
@@ -27,8 +26,8 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
       <div className="container mx-auto pt-24 px-4 md:px-0 pb-16">
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
-            <Card className="glassmorphism border-mondo-purple/30 overflow-hidden">
-              <div className="h-32 bg-gradient-to-r from-mondo-purple to-mondo-blue"></div>
+            <Card className="glassmorphism border-monad-purple/30 overflow-hidden">
+              <div className="h-32 bg-gradient-to-r from-monad-purple to-monad-blue"></div>
               <CardContent className="pt-0">
                 <div className="flex justify-center -mt-16">
                   <div className="h-32 w-32 rounded-full border-4 border-background bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
@@ -66,14 +65,14 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                 
                 <div className="mt-6 py-4 border-t border-white/10">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">MONDO Balance</span>
-                    <span className="text-lg font-bold text-mondo-cyan">{currentPlayer.tokens}</span>
+                    <span className="text-gray-400">MONAD Balance</span>
+                    <span className="text-lg font-bold text-monad-cyan">{currentPlayer.tokens}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="glassmorphism border-mondo-purple/30 mt-8">
+            <Card className="glassmorphism border-monad-purple/30 mt-8">
               <CardHeader>
                 <CardTitle className="text-white">On-Chain Activity</CardTitle>
               </CardHeader>
@@ -83,12 +82,12 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                     currentPlayer.transactionHistory.map((tx, index) => (
                       <div key={index} className="bg-black/20 p-3 rounded border border-white/5">
                         <div className="flex justify-between">
-                          <span className="text-xs text-mondo-purple">{tx.type}</span>
+                          <span className="text-xs text-monad-purple">{tx.type}</span>
                           <span className="text-xs text-gray-500">{new Date(tx.timestamp).toLocaleDateString()}</span>
                         </div>
                         <p className="text-sm text-gray-300 mt-1">{tx.details}</p>
                         <div className="mt-2">
-                          <a href="#" className="text-xs text-mondo-blue hover:underline">
+                          <a href="#" className="text-xs text-monad-blue hover:underline">
                             {tx.txHash.substring(0, 10)}...
                           </a>
                         </div>
@@ -105,7 +104,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
           </div>
           
           <div className="md:col-span-2">
-            <Card className="glassmorphism border-mondo-purple/30 h-full">
+            <Card className="glassmorphism border-monad-purple/30 h-full">
               <CardHeader>
                 <CardTitle className="text-white">My Collection</CardTitle>
                 <CardDescription className="text-gray-400">
@@ -147,7 +146,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-400">Collection Value</span>
-                              <span className="text-mondo-cyan font-bold">1,245 MONDO</span>
+                              <span className="text-monad-cyan font-bold">1,245 MONAD</span>
                             </div>
                           </div>
                         </CardContent>
@@ -164,7 +163,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                             <p className="text-sm text-gray-400">vs. BlockchainQueen</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-white">+50 MONDO</p>
+                            <p className="text-white">+50 MONAD</p>
                             <p className="text-xs text-gray-500">2 hours ago</p>
                           </div>
                         </div>
@@ -177,7 +176,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                             <p className="text-sm text-gray-400">vs. TokenTrader</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-white">+10 MONDO</p>
+                            <p className="text-white">+10 MONAD</p>
                             <p className="text-xs text-gray-500">5 hours ago</p>
                           </div>
                         </div>
@@ -190,7 +189,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                             <p className="text-sm text-gray-400">vs. NFTNinja</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-white">+50 MONDO</p>
+                            <p className="text-white">+50 MONAD</p>
                             <p className="text-xs text-gray-500">1 day ago</p>
                           </div>
                         </div>

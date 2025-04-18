@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GameRoom } from '@/types/game';
-import { Copy, Users, ArrowRight, Loader2 } from 'lucide-react';
+import { Copy, Users, ArrowRight, Loader2, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { getTransactionExplorerUrl, getBlockExplorerUrl, truncateHash } from '@/utils/blockchain';
 
 interface GameRoomCreatorProps {
   onRoomCreated: (room: GameRoom) => void;
@@ -14,8 +15,8 @@ interface GameRoomCreatorProps {
   username: string;
 }
 
-const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({ 
-  onRoomCreated, 
+const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
+  onRoomCreated,
   onBack,
   walletAddress,
   username
@@ -43,22 +44,22 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
     }
 
     setIsCreating(true);
-    
+
     try {
       // Generate a unique room code
       const generatedRoomCode = generateRoomCode();
       setRoomCode(generatedRoomCode);
-      
+
       // Simulate blockchain transaction
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
+
       // Simulate transaction hash and block number
       const txHash = `0x${Math.random().toString(16).substring(2, 42)}`;
       const blockNum = Math.floor(Math.random() * 1000000) + 8000000;
-      
+
       setTransactionHash(txHash);
       setBlockNumber(blockNum);
-      
+
       // Create the room object
       const newRoom: GameRoom = {
         id: `room-${Date.now()}`,
@@ -70,10 +71,10 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
         transactionHash: txHash,
         blockNumber: blockNum
       };
-      
+
       // Notify parent component
       onRoomCreated(newRoom);
-      
+
       toast.success("Game room created!", {
         description: `Room code: ${generatedRoomCode}`,
       });
@@ -96,7 +97,7 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
         <CardTitle className="text-white">Create Game Room</CardTitle>
         <CardDescription>Set up a 1v1 match with a friend</CardDescription>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="roomName">Room Name</Label>
@@ -109,20 +110,20 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
             disabled={isCreating || !!roomCode}
           />
         </div>
-        
+
         {roomCode && (
           <div className="mt-6 p-4 border border-blue-500/30 rounded-lg bg-blue-900/10">
             <div className="text-center mb-4">
               <h3 className="text-lg font-semibold text-white">Room Created!</h3>
               <p className="text-sm text-gray-400">Share this code with your friend</p>
             </div>
-            
+
             <div className="flex items-center justify-center space-x-2 mb-4">
               <div className="bg-black/40 px-4 py-3 rounded-lg text-2xl font-mono tracking-wider text-blue-400">
                 {roomCode}
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="icon"
                 onClick={copyRoomCode}
                 className="border-blue-500/30 text-blue-400"
@@ -130,32 +131,48 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
-            
+
             <div className="space-y-2 text-xs text-gray-500">
               <div className="flex justify-between">
                 <span>Transaction Hash:</span>
-                <span className="text-blue-400 font-mono">{`${transactionHash.substring(0, 10)}...${transactionHash.substring(transactionHash.length - 8)}`}</span>
+                <a
+                  href={getTransactionExplorerUrl(transactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 font-mono flex items-center"
+                >
+                  {truncateHash(transactionHash, 10, 8)}
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </div>
               <div className="flex justify-between">
                 <span>Block Number:</span>
-                <span className="text-blue-400 font-mono">{blockNumber}</span>
+                <a
+                  href={getBlockExplorerUrl(blockNumber)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 font-mono flex items-center"
+                >
+                  {blockNumber}
+                  <ExternalLink className="h-3 w-3 ml-1" />
+                </a>
               </div>
             </div>
           </div>
         )}
       </CardContent>
-      
+
       <CardFooter className="flex justify-between">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={onBack}
           disabled={isCreating}
         >
           Back
         </Button>
-        
+
         {!roomCode ? (
-          <Button 
+          <Button
             onClick={createRoom}
             disabled={isCreating || !roomName.trim()}
             className="bg-gradient-to-r from-blue-400 to-indigo-500"
@@ -173,7 +190,7 @@ const GameRoomCreator: React.FC<GameRoomCreatorProps> = ({
             )}
           </Button>
         ) : (
-          <Button 
+          <Button
             onClick={() => onRoomCreated({
               id: `room-${Date.now()}`,
               roomCode,

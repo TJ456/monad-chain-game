@@ -131,7 +131,8 @@ class WebSocketService {
     this.connectionStartTime = Date.now();
 
     // Build the WebSocket URL with session resumption if available
-    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'wss://monad-game-server.example.com/ws';
+    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8081/ws';
+    console.log(`Using WebSocket URL: ${wsUrl}`);
 
     // Add session ID for resumption if we have one
     if (this.sessionId) {
