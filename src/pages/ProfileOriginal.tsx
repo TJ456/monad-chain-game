@@ -12,17 +12,17 @@ interface ProfileProps {
 }
 
 const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
-  const winRate = currentPlayer.wins + currentPlayer.losses > 0
+  const winRate = currentPlayer.wins + currentPlayer.losses > 0 
     ? ((currentPlayer.wins / (currentPlayer.wins + currentPlayer.losses)) * 100).toFixed(1)
     : "0";
-
+    
   const nextLevelExp = currentPlayer.level * 100;
   const progress = (currentPlayer.experience / nextLevelExp) * 100;
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-
+      
       <div className="container mx-auto pt-24 px-4 md:px-0 pb-16">
         <div className="grid md:grid-cols-3 gap-8">
           <div className="md:col-span-1">
@@ -34,12 +34,12 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                     <span className="text-4xl">👤</span>
                   </div>
                 </div>
-
+                
                 <div className="text-center mt-4">
                   <h2 className="text-2xl font-bold text-white">{currentPlayer.username}</h2>
                   <p className="text-gray-400 text-sm">{currentPlayer.address.substring(0, 6)}...{currentPlayer.address.substring(currentPlayer.address.length - 4)}</p>
                 </div>
-
+                
                 <div className="grid grid-cols-3 gap-4 mt-6 text-center">
                   <div>
                     <p className="text-lg font-bold text-green-400">{currentPlayer.wins}</p>
@@ -54,7 +54,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                     <p className="text-xs text-gray-400">Win Rate</p>
                   </div>
                 </div>
-
+                
                 <div className="mt-6">
                   <div className="flex justify-between mb-1">
                     <span className="text-xs text-gray-400">Level {currentPlayer.level}</span>
@@ -62,21 +62,16 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                   </div>
                   <Progress value={progress} className="h-2 bg-gray-700" />
                 </div>
-
+                
                 <div className="mt-6 py-4 border-t border-white/10">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-400">MONAD Balance</span>
-                    <div className="flex flex-col items-end">
-                      <span className="text-lg font-bold text-monad-cyan">
-                        {typeof currentPlayer.tokens === 'number' ? currentPlayer.tokens.toFixed(4) : currentPlayer.tokens} MONAD
-                      </span>
-                      <span className="text-xs text-green-400">(Live from blockchain)</span>
-                    </div>
+                    <span className="text-lg font-bold text-monad-cyan">{currentPlayer.tokens}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
-
+            
             <Card className="glassmorphism border-monad-purple/30 mt-8">
               <CardHeader>
                 <CardTitle className="text-white">On-Chain Activity</CardTitle>
@@ -107,7 +102,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
               </CardContent>
             </Card>
           </div>
-
+          
           <div className="md:col-span-2">
             <Card className="glassmorphism border-monad-purple/30 h-full">
               <CardHeader>
@@ -123,7 +118,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                     <TabsTrigger value="stats">Card Stats</TabsTrigger>
                     <TabsTrigger value="history">Battle History</TabsTrigger>
                   </TabsList>
-
+                  
                   <TabsContent value="cards">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {currentPlayer.cards.map(card => (
@@ -131,7 +126,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                       ))}
                     </div>
                   </TabsContent>
-
+                  
                   <TabsContent value="stats">
                     <div className="space-y-4">
                       <Card className="bg-black/20 border-white/10">
@@ -158,7 +153,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                       </Card>
                     </div>
                   </TabsContent>
-
+                  
                   <TabsContent value="history">
                     <div className="space-y-4">
                       <div className="bg-black/20 p-4 rounded border border-white/5">
@@ -173,7 +168,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                           </div>
                         </div>
                       </div>
-
+                      
                       <div className="bg-black/20 p-4 rounded border border-white/5">
                         <div className="flex justify-between items-center">
                           <div>
@@ -186,7 +181,7 @@ const ProfileOriginal: React.FC<ProfileProps> = ({ currentPlayer }) => {
                           </div>
                         </div>
                       </div>
-
+                      
                       <div className="bg-black/20 p-4 rounded border border-white/5">
                         <div className="flex justify-between items-center">
                           <div>

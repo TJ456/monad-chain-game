@@ -22,7 +22,7 @@ const ContinuousRotatingCards: React.FC = () => {
       monadId: "0xFEATURED001",
       specialEffect: {
         description: "Triggers chain reactions across parallel executions",
-        effectType: "SPECIAL"
+        effectType: "BUFF"
       },
       onChainMetadata: {
         creator: "0xMonadFoundation",

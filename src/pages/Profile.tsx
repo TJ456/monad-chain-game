@@ -8,24 +8,11 @@ import { monadGameService } from '@/services/MonadGameService';
 // Export a modified version that fixes the property access issues
 const Profile = () => {
   const [isLoading, setIsLoading] = useState(true);
-  const [monadBalance, setMonadBalance] = useState<number | null>(null);
 
-  // Check wallet connection and load player data when component mounts
+  // Check wallet connection when component mounts
   useEffect(() => {
-    const initializeProfile = async () => {
+    const checkWalletConnection = async () => {
       try {
-        // Load cards from localStorage
-        const savedCards = localStorage.getItem('playerCards');
-        if (savedCards) {
-          try {
-            const parsedCards = JSON.parse(savedCards);
-            currentPlayer.cards = parsedCards;
-            console.log('Loaded cards from localStorage:', parsedCards.length);
-          } catch (e) {
-            console.error('Error parsing cards from localStorage:', e);
-          }
-        }
-
         // If wallet address is not set, try to reconnect
         if (!currentPlayer.monadAddress && window.ethereum) {
           const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
@@ -44,47 +31,14 @@ const Profile = () => {
             }
           }
         }
-
-        // Try to get the actual MONAD balance from the blockchain
-        if (currentPlayer.monadAddress) {
-          try {
-            // Connect wallet if not already connected
-            await monadGameService.connectWallet();
-
-            // Get the actual MONAD balance
-            const balance = await monadGameService.getMonadBalance();
-            setMonadBalance(balance);
-
-            // Update the currentPlayer object
-            currentPlayer.monad = balance;
-
-            // Save to localStorage
-            localStorage.setItem('playerMonad', balance.toString());
-
-            console.log('Updated MONAD balance from blockchain:', balance);
-          } catch (error) {
-            console.error('Failed to get MONAD balance:', error);
-
-            // Fall back to localStorage if available
-            const savedMonad = localStorage.getItem('playerMonad');
-            if (savedMonad) {
-              const parsedMonad = parseInt(savedMonad, 10);
-              if (!isNaN(parsedMonad)) {
-                currentPlayer.monad = parsedMonad;
-                setMonadBalance(parsedMonad);
-                console.log('Loaded MONAD balance from localStorage:', parsedMonad);
-              }
-            }
-          }
-        }
       } catch (error) {
-        console.error('Error initializing profile:', error);
+        console.error('Error checking wallet connection in Profile:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeProfile();
+    checkWalletConnection();
   }, []);
 
   if (isLoading) {
