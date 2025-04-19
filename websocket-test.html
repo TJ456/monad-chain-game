@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #log {
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            background-color: #f5f5f5;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="log"></div>
+    <button id="connect">Connect</button>
+    <button id="disconnect">Disconnect</button>
+    <button id="ping">Send Ping</button>
+
+    <script>
+        const logElement = document.getElementById('log');
+        let socket = null;
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        document.getElementById('connect').addEventListener('click', () => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                log('Already connected', 'info');
+                return;
+            }
+
+            try {
+                log('Attempting to connect...', 'info');
+                socket = new WebSocket('ws://localhost:8081');
+
+                socket.onopen = () => {
+                    log('Connection established!', 'success');
+                };
+
+                socket.onmessage = (event) => {
+                    log(`Received message: ${event.data}`, 'info');
+                };
+
+                socket.onclose = (event) => {
+                    log(`Connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`, 'error');
+                };
+
+                socket.onerror = (error) => {
+                    log('WebSocket error', 'error');
+                    console.error('WebSocket error:', error);
+                };
+            } catch (error) {
+                log(`Error creating WebSocket: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('disconnect').addEventListener('click', () => {
+            if (!socket) {
+                log('Not connected', 'error');
+                return;
+            }
+
+            socket.close();
+            socket = null;
+            log('Disconnected', 'info');
+        });
+
+        document.getElementById('ping').addEventListener('click', () => {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                log('Not connected', 'error');
+                return;
+            }
+
+            const message = {
+                type: 'ping',
+                payload: { timestamp: Date.now() },
+                timestamp: Date.now()
+            };
+
+            socket.send(JSON.stringify(message));
+            log('Ping sent', 'info');
+        });
+    </script>
+</body>
+</html>
