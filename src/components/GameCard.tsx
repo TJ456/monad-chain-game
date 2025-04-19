@@ -16,10 +16,10 @@ interface GameCardProps {
 
 const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetails = true }) => {
   const rarityStyles: Record<CardRarity, string> = {
-    [CardRarity.COMMON]: "border-gray-400 bg-gradient-to-br from-gray-700 to-gray-800",
-    [CardRarity.RARE]: "border-blue-400 bg-gradient-to-br from-blue-700 to-indigo-800 card-rare",
-    [CardRarity.EPIC]: "border-purple-400 bg-gradient-to-br from-purple-700 to-pink-800 card-epic",
-    [CardRarity.LEGENDARY]: "border-yellow-400 bg-gradient-to-br from-yellow-500 to-orange-600 card-legendary"
+    [CardRarity.COMMON]: "border-gray-400 bg-gradient-to-br from-gray-700 to-gray-800 shadow-md shadow-gray-700/30",
+    [CardRarity.RARE]: "border-blue-400 bg-gradient-to-br from-blue-700 to-indigo-800 card-rare shadow-md shadow-blue-700/30",
+    [CardRarity.EPIC]: "border-purple-400 bg-gradient-to-br from-purple-700 to-pink-800 card-epic shadow-md shadow-purple-700/30",
+    [CardRarity.LEGENDARY]: "border-yellow-400 bg-gradient-to-br from-yellow-500 to-orange-600 card-legendary shadow-lg shadow-orange-500/30"
   };
 
   const typeIcons: Record<CardType, React.ReactNode> = {
@@ -60,7 +60,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
   return (
     <CardComponent
       className={cn(
-        "relative overflow-hidden w-56 h-80 transition-all duration-300 cursor-pointer card-hover",
+        "relative overflow-hidden w-56 h-80 transition-all duration-300 cursor-pointer card-hover border-2",
         rarityStyles[card.rarity],
         card.boosted ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-400/20" : "",
         className
@@ -70,7 +70,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
       {card.boosted && (
         <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400/20 to-purple-500/20 animate-pulse rounded-lg z-0"></div>
       )}
-      <div className="absolute inset-0.5 bg-black rounded-sm z-0" />
+      <div className="absolute inset-0.5 bg-gradient-to-b from-black to-gray-900 rounded-sm z-0" />
 
       <div className="relative z-10 h-full flex flex-col p-3">
         {/* Card Header */}
@@ -101,25 +101,33 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
         </div>
 
         {/* Card Image */}
-        <div className="flex-1 relative overflow-hidden rounded-sm mb-2">
+        <div className="flex-1 relative overflow-hidden rounded-sm mb-2 ring-1 ring-white/10">
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="absolute inset-0 bg-cover bg-center transform hover:scale-110 transition-transform duration-700"
             style={{ backgroundImage: `url(${imageUrl})` }}
           />
+          {/* Card Frame Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
           {/* Monad Blockchain Badge */}
-          <div className="absolute bottom-1 right-1 bg-black/60 rounded px-1 py-0.5 text-[8px] text-emerald-400 font-mono">
+          <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5 text-[8px] text-emerald-400 font-mono border border-emerald-500/20">
             MONAD
+          </div>
+          {/* Rarity Indicator */}
+          <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center space-x-1">
+            {[...Array(card.rarity === CardRarity.LEGENDARY ? 3 : card.rarity === CardRarity.EPIC ? 2 : card.rarity === CardRarity.RARE ? 1 : 0)].map((_, i) => (
+              <div key={i} className={`h-1.5 w-1.5 rounded-full ${card.rarity === CardRarity.LEGENDARY ? 'bg-yellow-400' : card.rarity === CardRarity.EPIC ? 'bg-purple-400' : 'bg-blue-400'}`}></div>
+            ))}
           </div>
         </div>
 
         {/* Card Details */}
         {showDetails && (
           <>
-            <div className="text-xs text-gray-300 mb-2 h-12 overflow-hidden">
+            <div className="text-xs text-gray-300 mb-2 h-12 overflow-hidden bg-black/30 p-2 rounded border border-white/5">
               {card.description}
             </div>
 
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center bg-black/40 p-1.5 rounded border border-white/5">
               <div className="flex items-center space-x-1">
                 <span className="text-xs text-blue-300">Mana:</span>
                 <span className="text-sm font-semibold text-blue-400">{card.mana}</span>
@@ -157,7 +165,7 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center justify-between text-emerald-400">
+                    <div className="flex items-center justify-between text-emerald-400 bg-black/40 p-1.5 rounded border border-emerald-500/20 backdrop-blur-sm">
                       <span className="font-mono truncate">{card.monadId}</span>
                       <div className="h-3 w-3 bg-emerald-500/30 rounded-full flex items-center justify-center">
                         <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>

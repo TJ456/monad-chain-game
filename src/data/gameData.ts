@@ -332,7 +332,7 @@ export const currentPlayer: Player = {
   experience: 500,
   wins: 12,
   losses: 8,
-  cards: [cards[0], cards[1], cards[2]],
+  cards: [cards[0], cards[1], cards[2], cards[4], cards[6]],
   monad: 1000,
   shards: 5,
   dailyTrialsRemaining: 3,

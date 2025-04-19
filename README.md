@@ -1,10 +1,10 @@
-# Monad Chain Game
+# MONAD Chain Game
 
-A blockchain-based card game built on the Monad blockchain, featuring fast transactions, parallel execution, and composable cards.
+A blockchain-based card game built on the MONAD blockchain, featuring fast transactions, parallel execution, and composable cards.
 
 ## Features
 
-- **Blockchain Integration**: Connect your wallet and interact with the Monad blockchain
+- **Blockchain Integration**: Connect your wallet and interact with the MONAD blockchain
 - **Card Minting**: Create unique cards with various attributes
 - **Battle System**: Challenge other players to card battles
 - **Tournament System**: Create and join tournaments with prize pools
@@ -37,7 +37,7 @@ A blockchain-based card game built on the Monad blockchain, featuring fast trans
    ```
    VITE_MONAD_CONTRACT_ADDRESS=0x1234567890AbCdEfGh1234567890AbCdEfGh1234
    VITE_NETWORK_ID=1
-   VITE_NETWORK_NAME=Monad Mainnet
+   VITE_NETWORK_NAME=MONAD
    VITE_API_URL=https://api.monad.network
    VITE_INDEXER_URL=https://indexer.monad.network
    VITE_ENABLE_TOURNAMENTS=true
@@ -71,10 +71,10 @@ The game uses the following smart contracts:
 ## Environment Variables
 
 - `VITE_MONAD_CONTRACT_ADDRESS`: Address of the deployed MonadGame contract
-- `VITE_NETWORK_ID`: ID of the Monad network
-- `VITE_NETWORK_NAME`: Name of the Monad network
-- `VITE_API_URL`: URL of the Monad API
-- `VITE_INDEXER_URL`: URL of the Monad indexer
+- `VITE_NETWORK_ID`: ID of the MONAD network
+- `VITE_NETWORK_NAME`: Name of the MONAD network
+- `VITE_API_URL`: URL of the MONAD API
+- `VITE_INDEXER_URL`: URL of the MONAD indexer
 - `VITE_ENABLE_TOURNAMENTS`: Enable tournament features
 - `VITE_ENABLE_COMPOSABLE_CARDS`: Enable composable cards features
 - `VITE_ENABLE_PARALLEL_EXECUTION`: Enable parallel execution features

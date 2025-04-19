@@ -23,7 +23,7 @@ interface BlockchainTransactionInfoProps {
 const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
   transactions,
   currentBlockHeight,
-  networkName = 'Monad Testnet',
+  networkName = 'MONAD',
   isConnected
 }) => {
   const getStatusIcon = (status: string) => {
@@ -63,7 +63,7 @@ const BlockchainTransactionInfo: React.FC<BlockchainTransactionInfoProps> = ({
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-white flex items-center">
           <div className="h-2 w-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></div>
-          Monad Blockchain Status
+          MONAD Blockchain Status
         </h3>
         <div className="text-xs text-emerald-400">
           {networkName} • Block #{currentBlockHeight}
