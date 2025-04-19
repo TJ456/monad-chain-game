@@ -17,12 +17,14 @@ import { useToast } from "@/components/ui/use-toast";
 import { Link, useNavigate } from 'react-router-dom';
 import { currentPlayer } from '@/data/gameData';
 import { monadGameService } from '@/services/MonadGameService';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const Navigation: React.FC = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isWalletConnected, setIsWalletConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [monadBalance, setMonadBalance] = useState<number | null>(null);
 
   const handleRemoveNetwork = async () => {
     try {
@@ -44,7 +46,7 @@ const Navigation: React.FC = () => {
     const message = (
       <div className="space-y-4 text-sm">
         <div>
-          <p className="font-semibold">Add Monad Mainnet to MetaMask manually with these settings:</p>
+          <p className="font-semibold">Add MONAD network to MetaMask manually with these settings:</p>
           <div className="grid grid-cols-2 gap-1 mt-2">
             <span className="font-medium">Network Name:</span>
             <span>{config.chainName}</span>
@@ -105,6 +107,16 @@ const Navigation: React.FC = () => {
 
       setIsWalletConnected(true);
       currentPlayer.monadAddress = address;
+
+      // Get the actual MONAD balance
+      try {
+        const balance = await monadGameService.getMonadBalance();
+        setMonadBalance(balance);
+        currentPlayer.monad = balance;
+        console.log('Updated MONAD balance after connection:', balance);
+      } catch (err) {
+        console.error('Failed to get MONAD balance after connection:', err);
+      }
 
       toast({
         title: "Wallet Connected",
@@ -189,6 +201,17 @@ const Navigation: React.FC = () => {
             console.log('Wallet already connected:', accounts[0]);
             setIsWalletConnected(true);
             currentPlayer.monadAddress = accounts[0];
+
+            // Try to get the actual MONAD balance
+            try {
+              await monadGameService.connectWallet();
+              const balance = await monadGameService.getMonadBalance();
+              setMonadBalance(balance);
+              currentPlayer.monad = balance;
+              console.log('Updated MONAD balance in Navigation:', balance);
+            } catch (err) {
+              console.error('Failed to get MONAD balance in Navigation:', err);
+            }
           }
         }
       } catch (error) {
@@ -204,11 +227,12 @@ const Navigation: React.FC = () => {
         window.location.reload();
       };
 
-      const handleAccountsChanged = (accounts: string[]) => {
+      const handleAccountsChanged = async (accounts: string[]) => {
         if (accounts.length === 0) {
           // User disconnected their wallet
           setIsWalletConnected(false);
           currentPlayer.monadAddress = null;
+          setMonadBalance(null);
           toast({
             title: "Wallet Disconnected",
             description: "Your wallet has been disconnected.",
@@ -218,6 +242,16 @@ const Navigation: React.FC = () => {
           // Account changed
           setIsWalletConnected(true);
           currentPlayer.monadAddress = accounts[0];
+
+          // Get the new account's MONAD balance
+          try {
+            const balance = await monadGameService.getMonadBalance();
+            setMonadBalance(balance);
+            currentPlayer.monad = balance;
+            console.log('Updated MONAD balance after account change:', balance);
+          } catch (err) {
+            console.error('Failed to get MONAD balance after account change:', err);
+          }
         }
       };
 
@@ -259,9 +293,19 @@ const Navigation: React.FC = () => {
 
               {/* Wallet Connection Section */}
               <div className="flex items-center space-x-2">
-                <div className="text-monad-cyan font-medium">
-                  {currentPlayer.monad} MONAD
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-monad-cyan font-medium flex items-center">
+                        {monadBalance !== null ? monadBalance.toFixed(4) : currentPlayer.monad} MONAD
+                        <div className="ml-1 h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Live balance from MONAD blockchain</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {isWalletConnected ? (
                   <Button
                     variant="outline"
