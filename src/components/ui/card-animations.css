@@ -1,0 +1,102 @@
+/* New card animations for the redesigned GameCard component */
+
+/* Holographic animation */
+@keyframes holographic {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Moving right animation for energy lines */
+@keyframes moveRight {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(500%);
+  }
+}
+
+/* Subtle border glow for card elements */
+.border-glow {
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+}
+
+/* Animation delays */
+.animate-delay-300 {
+  animation-delay: 300ms;
+}
+
+.animate-delay-600 {
+  animation-delay: 600ms;
+}
+
+/* 3D perspective */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+/* Hover effects */
+.card-hover-3d:hover {
+  transform: translateY(-5px) rotateY(5deg) rotateX(-5deg);
+}
+
+/* Rarity-specific animations */
+.card-rarity-legendary {
+  animation: legendary-pulse 3s infinite;
+}
+
+@keyframes legendary-pulse {
+  0% {
+    box-shadow: 0 0 5px 0px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px 5px rgba(245, 158, 11, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 5px 0px rgba(245, 158, 11, 0.3);
+  }
+}
+
+/* Energy field animation */
+@keyframes energyField {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0.3;
+    transform: scale(0.95);
+  }
+}
+
+.energy-field {
+  animation: energyField 3s ease-in-out infinite;
+}
+
+/* Circuit pattern animation */
+@keyframes circuitPulse {
+  0% {
+    opacity: 0.05;
+  }
+  50% {
+    opacity: 0.15;
+  }
+  100% {
+    opacity: 0.05;
+  }
+}
+
+.circuit-pattern {
+  animation: circuitPulse 4s ease-in-out infinite;
+}
