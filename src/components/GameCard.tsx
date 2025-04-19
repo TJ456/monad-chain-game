@@ -1,11 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card as CardComponent } from "@/components/ui/card";
 import { Card as GameCardType, CardRarity, CardType } from "@/types/game";
 import { cn } from "@/lib/utils";
 import { generateCardImage } from '@/utils/placeholderImages';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Zap, Shield, Wand2 } from 'lucide-react';
 
 interface GameCardProps {
   card: GameCardType;
@@ -15,30 +15,44 @@ interface GameCardProps {
 }
 
 const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetails = true }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
+  // New rarity styles with hexagonal/geometric theme
   const rarityStyles: Record<CardRarity, string> = {
-    [CardRarity.COMMON]: "border-gray-400 bg-gradient-to-br from-gray-700 to-gray-800 shadow-md shadow-gray-700/30",
-    [CardRarity.RARE]: "border-blue-400 bg-gradient-to-br from-blue-700 to-indigo-800 card-rare shadow-md shadow-blue-700/30",
-    [CardRarity.EPIC]: "border-purple-400 bg-gradient-to-br from-purple-700 to-pink-800 card-epic shadow-md shadow-purple-700/30",
-    [CardRarity.LEGENDARY]: "border-yellow-400 bg-gradient-to-br from-yellow-500 to-orange-600 card-legendary shadow-lg shadow-orange-500/30"
+    [CardRarity.COMMON]: "border-slate-400 bg-slate-900 shadow-md",
+    [CardRarity.RARE]: "border-cyan-400 bg-slate-900 shadow-md",
+    [CardRarity.EPIC]: "border-fuchsia-400 bg-slate-900 shadow-md",
+    [CardRarity.LEGENDARY]: "border-amber-400 bg-slate-900 shadow-lg"
   };
 
+  // New rarity background effects
+  const rarityBackgrounds: Record<CardRarity, string> = {
+    [CardRarity.COMMON]: "bg-gradient-to-br from-slate-800 to-slate-900",
+    [CardRarity.RARE]: "bg-gradient-to-br from-cyan-900/30 to-slate-900",
+    [CardRarity.EPIC]: "bg-gradient-to-br from-fuchsia-900/30 to-slate-900",
+    [CardRarity.LEGENDARY]: "bg-gradient-to-br from-amber-900/30 to-slate-900"
+  };
+
+  // New rarity glow effects
+  const rarityGlows: Record<CardRarity, string> = {
+    [CardRarity.COMMON]: "shadow-none",
+    [CardRarity.RARE]: "shadow-[0_0_15px_rgba(6,182,212,0.3)]",
+    [CardRarity.EPIC]: "shadow-[0_0_15px_rgba(192,38,211,0.3)]",
+    [CardRarity.LEGENDARY]: "shadow-[0_0_20px_rgba(245,158,11,0.4)]"
+  };
+
+  // New type icons using Lucide icons
   const typeIcons: Record<CardType, React.ReactNode> = {
-    [CardType.ATTACK]: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-      </svg>
-    ),
-    [CardType.DEFENSE]: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
-      </svg>
-    ),
-    [CardType.UTILITY]: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-      </svg>
-    )
+    [CardType.ATTACK]: <Zap className="h-5 w-5 text-rose-500" />,
+    [CardType.DEFENSE]: <Shield className="h-5 w-5 text-cyan-500" />,
+    [CardType.UTILITY]: <Wand2 className="h-5 w-5 text-fuchsia-500" />
+  };
+
+  // Type colors for various UI elements
+  const typeColors: Record<CardType, string> = {
+    [CardType.ATTACK]: "text-rose-500 border-rose-500/30",
+    [CardType.DEFENSE]: "text-cyan-500 border-cyan-500/30",
+    [CardType.UTILITY]: "text-fuchsia-500 border-fuchsia-500/30"
   };
 
   // Use our placeholder image generator
@@ -58,135 +72,217 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
   };
 
   return (
-    <CardComponent
+    <div
       className={cn(
-        "relative overflow-hidden w-56 h-80 transition-all duration-300 cursor-pointer card-hover border-2",
-        rarityStyles[card.rarity],
-        card.boosted ? "ring-2 ring-yellow-400/50 shadow-lg shadow-yellow-400/20" : "",
+        "relative w-56 h-80 perspective-1000 transition-all duration-300 cursor-pointer",
         className
       )}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
     >
-      {card.boosted && (
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-yellow-400/20 to-purple-500/20 animate-pulse rounded-lg z-0"></div>
-      )}
-      <div className="absolute inset-0.5 bg-gradient-to-b from-black to-gray-900 rounded-sm z-0" />
+      {/* Rectangular card container with beveled corners */}
+      <div
+        className={cn(
+          "absolute inset-0 transform-gpu transition-all duration-500 rounded-lg",
+          isHovered ? "scale-105" : "",
+          rarityGlows[card.rarity],
+          card.rarity === CardRarity.LEGENDARY ? "card-rarity-legendary" : ""
+        )}
+        style={{
+          transformStyle: "preserve-3d",
+          transform: isHovered ? "rotateY(5deg) rotateX(-5deg)" : "rotateY(0) rotateX(0)"
+        }}
+      >
+        {/* Card background with rarity-based styling */}
+        <div className={cn(
+          "absolute inset-0 border-2",
+          rarityStyles[card.rarity],
+          card.boosted ? "ring-1 ring-amber-400/50" : ""
+        )}>
+          {/* Holographic effect */}
+          <div className="absolute inset-0 opacity-20 mix-blend-overlay bg-gradient-to-br from-transparent via-white to-transparent"
+               style={{
+                 backgroundSize: "200% 200%",
+                 animation: "holographic 3s ease infinite",
+                 backgroundPosition: isHovered ? "right bottom" : "left top"
+               }}></div>
 
-      <div className="relative z-10 h-full flex flex-col p-3">
-        {/* Card Header */}
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center">
-            <div className="text-lg font-bold text-white truncate">{card.name}</div>
-            {card.boosted && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-yellow-500/30">
-                      <Sparkles className="h-3 w-3 text-yellow-400" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="bg-black/80 border-yellow-500/50">
-                    <div className="text-xs">
-                      <span className="text-yellow-400 font-bold">MONAD Boosted</span>
-                      <div className="text-gray-300 mt-1">This card's power has been amplified by MONAD tokens</div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-          </div>
-          <div className="flex items-center justify-center h-6 w-6 rounded-full bg-black/40 backdrop-blur-sm">
-            {typeIcons[card.type]}
+          {/* Circuit pattern overlay */}
+          <div className="absolute inset-0 opacity-10 bg-[url('/circuit-pattern.svg')] bg-repeat bg-[length:100px_100px] circuit-pattern"></div>
+
+          {/* Main background */}
+          <div className={cn("absolute inset-0", rarityBackgrounds[card.rarity])}></div>
+
+          {/* Boosted effect */}
+          {card.boosted && (
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-400/10 to-fuchsia-500/10 animate-pulse"></div>
+          )}
+
+          {/* Energy field effect */}
+          <div className="absolute inset-0 opacity-30 energy-field">
+            <div className="absolute inset-0 bg-gradient-to-br from-transparent via-slate-500/5 to-transparent"></div>
           </div>
         </div>
 
-        {/* Card Image */}
-        <div className="flex-1 relative overflow-hidden rounded-sm mb-2 ring-1 ring-white/10">
-          <div
-            className="absolute inset-0 bg-cover bg-center transform hover:scale-110 transition-transform duration-700"
-            style={{ backgroundImage: `url(${imageUrl})` }}
-          />
-          {/* Card Frame Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none"></div>
-          {/* Monad Blockchain Badge */}
-          <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-sm rounded px-1.5 py-0.5 text-[8px] text-emerald-400 font-mono border border-emerald-500/20">
-            MONAD
-          </div>
-          {/* Rarity Indicator */}
-          <div className="absolute top-1 left-1 bg-black/60 backdrop-blur-sm rounded-full px-1.5 py-0.5 flex items-center space-x-1">
-            {[...Array(card.rarity === CardRarity.LEGENDARY ? 3 : card.rarity === CardRarity.EPIC ? 2 : card.rarity === CardRarity.RARE ? 1 : 0)].map((_, i) => (
-              <div key={i} className={`h-1.5 w-1.5 rounded-full ${card.rarity === CardRarity.LEGENDARY ? 'bg-yellow-400' : card.rarity === CardRarity.EPIC ? 'bg-purple-400' : 'bg-blue-400'}`}></div>
-            ))}
-          </div>
-        </div>
+        {/* Card content */}
+        <div className="relative h-full flex flex-col p-3 z-10">
+          {/* Card Header - Redesigned */}
+          <div className="relative mb-2">
+            {/* Decorative header line */}
+            <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-slate-400/50 to-transparent"></div>
 
-        {/* Card Details */}
-        {showDetails && (
-          <>
-            <div className="text-xs text-gray-300 mb-2 h-12 overflow-hidden bg-black/30 p-2 rounded border border-white/5">
-              {card.description}
+            {/* Type badge - moved to top right with new design */}
+            <div className={cn(
+              "absolute -top-1 -right-1 flex items-center justify-center h-8 w-8 rounded-full backdrop-blur-sm border",
+              typeColors[card.type]
+            )}>
+              {typeIcons[card.type]}
             </div>
 
-            <div className="flex justify-between items-center bg-black/40 p-1.5 rounded border border-white/5">
-              <div className="flex items-center space-x-1">
-                <span className="text-xs text-blue-300">Mana:</span>
-                <span className="text-sm font-semibold text-blue-400">{card.mana}</span>
+            {/* Card name with tech-inspired styling */}
+            <div className="pt-3 pb-1 flex items-center">
+              <div className="text-lg font-bold text-white truncate tracking-wide">
+                {card.name}
+              </div>
+              {card.boosted && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-amber-500/30">
+                        <Sparkles className="h-3 w-3 text-amber-400" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-black/90 border-amber-500/50">
+                      <div className="text-xs">
+                        <span className="text-amber-400 font-bold">MONAD Boosted</span>
+                        <div className="text-slate-300 mt-1">This card's power has been amplified by MONAD tokens</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          </div>
+
+          {/* Card Image - Redesigned with rectangular frame */}
+          <div className="flex-1 relative overflow-hidden mb-2">
+            {/* Rectangular image container with subtle beveled corners */}
+            <div className="absolute inset-0 rounded-md overflow-hidden">
+              <div
+                className={cn(
+                  "absolute inset-0 bg-cover bg-center transition-transform duration-700",
+                  isHovered ? "scale-110" : "scale-100"
+                )}
+                style={{ backgroundImage: `url(${imageUrl})` }}
+              />
+
+              {/* Image overlay with tech-inspired pattern */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+
+              {/* Animated energy lines */}
+              <div className="absolute inset-0 overflow-hidden">
+                <div className="absolute h-0.5 w-1/3 bg-gradient-to-r from-transparent via-white to-transparent top-1/4 -left-full animate-[moveRight_3s_ease-in-out_infinite]"></div>
+                <div className="absolute h-0.5 w-1/4 bg-gradient-to-r from-transparent via-white to-transparent top-2/3 -left-full animate-[moveRight_2.5s_ease-in-out_infinite_0.5s]"></div>
               </div>
 
-              {card.attack && (
-                <div className="flex items-center space-x-1">
-                  <span className="text-xs text-red-300">ATK:</span>
-                  <span className="text-sm font-semibold text-red-400">
-                    {card.attack}
-                    {card.boosted && card.originalAttack && (
-                      <span className="text-green-400 text-xs ml-1">+{card.attack - card.originalAttack}</span>
-                    )}
-                  </span>
-                  {card.boosted && <Sparkles className="h-3 w-3 text-yellow-400 ml-1 animate-pulse" />}
-                </div>
-              )}
-
-              {card.defense && (
-                <div className="flex items-center space-x-1">
-                  <span className="text-xs text-green-300">DEF:</span>
-                  <span className="text-sm font-semibold text-green-400">
-                    {card.defense}
-                    {card.boosted && card.originalDefense && (
-                      <span className="text-green-400 text-xs ml-1">+{card.defense - card.originalDefense}</span>
-                    )}
-                  </span>
-                  {card.boosted && <Sparkles className="h-3 w-3 text-yellow-400 ml-1 animate-pulse" />}
-                </div>
-              )}
+              {/* Monad Blockchain Badge - Redesigned */}
+              <div className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[8px] text-cyan-400 font-mono border border-cyan-500/20 rounded-sm">
+                MONAD
+              </div>
             </div>
 
-            {/* Monad Blockchain Data */}
-            <div className="mt-2 pt-2 border-t border-white/10 text-xs">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center justify-between text-emerald-400 bg-black/40 p-1.5 rounded border border-emerald-500/20 backdrop-blur-sm">
-                      <span className="font-mono truncate">{card.monadId}</span>
-                      <div className="h-3 w-3 bg-emerald-500/30 rounded-full flex items-center justify-center">
-                        <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+            {/* Rarity Indicator - Redesigned */}
+            <div className="absolute top-1 left-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 flex items-center space-x-1 rounded-sm">
+              {[...Array(card.rarity === CardRarity.LEGENDARY ? 3 : card.rarity === CardRarity.EPIC ? 2 : card.rarity === CardRarity.RARE ? 1 : 0)].map((_, i) => (
+                <div key={i} className={cn(
+                  "h-1.5 w-1.5",
+                  card.rarity === CardRarity.LEGENDARY ? 'bg-amber-400' :
+                  card.rarity === CardRarity.EPIC ? 'bg-fuchsia-400' : 'bg-cyan-400',
+                  "animate-[pulse_1.5s_ease-in-out_infinite]",
+                  i === 1 ? "animate-delay-300" : i === 2 ? "animate-delay-600" : ""
+                )}></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Card Details - Redesigned */}
+          {showDetails && (
+            <>
+              {/* Description with tech-inspired styling */}
+              <div className="text-xs text-slate-300 mb-2 h-12 overflow-hidden bg-black/50 backdrop-blur-sm p-2 border border-slate-700/30 rounded-md">
+                {card.description}
+              </div>
+
+              {/* Stats display - Redesigned */}
+              <div className="grid grid-cols-3 gap-1 mb-1">
+                {/* Mana stat */}
+                <div className="flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-1 border border-blue-500/20 rounded-md">
+                  <span className="text-xs text-blue-300">MANA</span>
+                  <span className="text-sm font-semibold text-blue-400">{card.mana}</span>
+                </div>
+
+                {/* Attack stat */}
+                {card.attack && (
+                  <div className="flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-1 border border-rose-500/20 rounded-md">
+                    <span className="text-xs text-rose-300">ATK</span>
+                    <div className="flex items-center">
+                      <span className="text-sm font-semibold text-rose-400">
+                        {card.attack}
+                        {card.boosted && card.originalAttack && (
+                          <span className="text-green-400 text-xs ml-1">+{card.attack - card.originalAttack}</span>
+                        )}
+                      </span>
+                      {card.boosted && <Sparkles className="h-3 w-3 text-amber-400 ml-1 animate-pulse" />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Defense stat */}
+                {card.defense && (
+                  <div className="flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-1 border border-cyan-500/20 rounded-md">
+                    <span className="text-xs text-cyan-300">DEF</span>
+                    <div className="flex items-center">
+                      <span className="text-sm font-semibold text-cyan-400">
+                        {card.defense}
+                        {card.boosted && card.originalDefense && (
+                          <span className="text-green-400 text-xs ml-1">+{card.defense - card.originalDefense}</span>
+                        )}
+                      </span>
+                      {card.boosted && <Sparkles className="h-3 w-3 text-amber-400 ml-1 animate-pulse" />}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Monad Blockchain Data - Redesigned */}
+              <div className="mt-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center justify-between text-cyan-400 bg-black/50 backdrop-blur-sm p-1 border border-cyan-500/20 rounded-md">
+                        <span className="font-mono text-xs truncate">{card.monadId}</span>
+                        <div className="h-3 w-3 bg-cyan-500/30 flex items-center justify-center">
+                          <div className="h-1.5 w-1.5 bg-cyan-500 animate-pulse"></div>
+                        </div>
                       </div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-black/80 border-emerald-500/50">
-                    <div className="text-xs font-mono text-emerald-400">
-                      <div>Created at block: {card.onChainMetadata?.creationBlock || 'Unknown'}</div>
-                      <div>Evolution: Stage {card.onChainMetadata?.evolutionStage || 1}</div>
-                      <div>Win rate: {calculateWinRate()}</div>
-                      <div>Creator: {card.onChainMetadata?.creator || 'Unknown'}</div>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-          </>
-        )}
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-black/90 border-cyan-500/50">
+                      <div className="text-xs font-mono text-cyan-400">
+                        <div>Created at block: {card.onChainMetadata?.creationBlock || 'Unknown'}</div>
+                        <div>Evolution: Stage {card.onChainMetadata?.evolutionStage || 1}</div>
+                        <div>Win rate: {calculateWinRate()}</div>
+                        <div>Creator: {card.onChainMetadata?.creator || 'Unknown'}</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </CardComponent>
+    </div>
   );
 };
 

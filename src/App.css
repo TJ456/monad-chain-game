@@ -1,6 +1,7 @@
 
 /* Import existing CSS first */
 @import './components/ui/card-animation.css';
+@import './components/ui/card-animations.css';
 
 /* Add any other global styles here */
 .glassmorphism {

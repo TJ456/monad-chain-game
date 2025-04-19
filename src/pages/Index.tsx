@@ -5,6 +5,7 @@ import ParallelExecutionBattles from '@/components/ParallelExecutionBattles';
 import ChainReactionCards from '@/components/ChainReactionCards';
 import BurnToEvolve from '@/components/BurnToEvolve';
 import LiveBettingPool from '@/components/LiveBettingPool';
+import CardShowcase from '@/components/CardShowcase';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Play, Shield, Zap, Repeat, Award, Sparkles } from "lucide-react";
@@ -127,6 +128,17 @@ const Index = () => {
             <LiveBettingPool />
           </motion.div>
         </div>
+
+        {/* New Card Design Showcase */}
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeInOut" }}
+          viewport={{ once: true, margin: "-100px" }}
+          className="mb-16 bg-black/30 rounded-lg border border-emerald-500/20 overflow-hidden"
+        >
+          <CardShowcase />
+        </motion.div>
 
         {/* How to Play Section - NEW */}
         <div className="mb-16">
