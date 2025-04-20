@@ -96,18 +96,7 @@ const BurnToEvolve: React.FC = () => {
         }
       }
 
-      // Show a notification about the minimum card requirement
-      if (currentPlayer.cards.length <= 5) {
-        setTimeout(() => {
-          toast.info(
-            "You need at least 3 cards to play the game",
-            {
-              description: "Burning cards will transform them into a more powerful card, but make sure to keep at least 3 cards in your inventory.",
-              duration: 5000
-            }
-          );
-        }, 1000);
-      }
+      // We'll show the notification about minimum card requirement only when needed during card selection
     } catch (error) {
       console.error('Error loading saved player data:', error);
     }
@@ -144,6 +133,17 @@ const BurnToEvolve: React.FC = () => {
 
   const openInventoryDialog = () => {
     setShowInventoryDialog(true);
+
+    // Show the burn-to-evolve notification only when the user is actively trying to select cards
+    if (currentPlayer.cards.length <= 5) {
+      toast.info(
+        "You need at least 3 cards to play the game",
+        {
+          description: "Burning cards will transform them into a more powerful card, but make sure to keep at least 3 cards in your inventory.",
+          duration: 5000
+        }
+      );
+    }
   };
 
   const handleBurn = () => {

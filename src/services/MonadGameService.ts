@@ -337,6 +337,106 @@ export class MonadGameService {
     }
   }
 
+  async getPlayerCards(address: string): Promise<any[]> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    try {
+      // Check if we're using a placeholder contract address or in development mode
+      const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
+      if (contractAddress === '0x1234567890123456789012345678901234567890' || process.env.NODE_ENV === 'development') {
+        console.log('Using mock card data (development mode or placeholder contract)');
+
+        // Generate some mock cards for development
+        const mockCards = [];
+        const numCards = Math.floor(Math.random() * 5) + 1; // 1-5 cards
+
+        for (let i = 0; i < numCards; i++) {
+          const rarityLevel = Math.floor(Math.random() * 4); // 0-3 (common to legendary)
+          const cardType = Math.floor(Math.random() * 3); // 0-2 (attack, defense, utility)
+          const rarityNames = ['COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY'];
+          const typeNames = ['ATTACK', 'DEFENSE', 'UTILITY'];
+
+          mockCards.push({
+            id: `card-${Date.now()}-${i}`,
+            name: `${rarityNames[rarityLevel]} ${typeNames[cardType]} Card`,
+            description: `A ${rarityNames[rarityLevel].toLowerCase()} ${typeNames[cardType].toLowerCase()} card for testing.`,
+            image: `/cards/${rarityNames[rarityLevel].toLowerCase()}_${typeNames[cardType].toLowerCase()}.png`,
+            rarity: rarityNames[rarityLevel],
+            type: typeNames[cardType],
+            mana: 1 + Math.floor(Math.random() * 5),
+            attack: 1 + Math.floor(Math.random() * 10),
+            defense: 1 + Math.floor(Math.random() * 10),
+            monadId: `0x${Math.random().toString(16).substring(2, 10)}`,
+            onChainMetadata: {
+              creator: address,
+              creationBlock: Math.floor(Math.random() * 1000000),
+              evolutionStage: Math.floor(Math.random() * 3),
+              battleHistory: []
+            }
+          });
+        }
+
+        return mockCards;
+      }
+
+      // Get card IDs owned by the player
+      const cardIds = await this.monadGameContract?.getPlayerCards(address);
+      console.log('Player card IDs:', cardIds);
+
+      if (!cardIds || cardIds.length === 0) {
+        return [];
+      }
+
+      // Get details for each card
+      const cards = [];
+      for (const id of cardIds) {
+        try {
+          const card = await this.monadGameContract?.getCard(id);
+
+          // Get card composition history if available
+          let composedFrom = [];
+          try {
+            composedFrom = await this.monadGameContract?.getCardComposition(id);
+            composedFrom = composedFrom.map(id => id.toString());
+          } catch (error) {
+            console.warn(`Error getting composition for card ${id}:`, error);
+          }
+
+          // Convert contract card data to our format
+          cards.push({
+            id: id.toString(),
+            name: card.name,
+            description: `A ${card.rarity === 0 ? 'common' : card.rarity === 1 ? 'uncommon' : card.rarity === 2 ? 'rare' : 'legendary'} card.`,
+            image: `/cards/card_${id}.png`, // Placeholder image path
+            rarity: card.rarity === 0 ? 'COMMON' : card.rarity === 1 ? 'UNCOMMON' : card.rarity === 2 ? 'RARE' : 'LEGENDARY',
+            type: card.cardType === 0 ? 'ATTACK' : card.cardType === 1 ? 'DEFENSE' : 'UTILITY',
+            mana: card.mana.toNumber(),
+            attack: card.attack.toNumber(),
+            defense: card.defense.toNumber(),
+            monadId: id.toString(),
+            onChainMetadata: {
+              creator: card.creator,
+              creationBlock: card.mintTime.toNumber(),
+              evolutionStage: card.evolutionLevel,
+              battleHistory: [],
+              composedFrom
+            }
+          });
+        } catch (error) {
+          console.error(`Error getting details for card ${id}:`, error);
+        }
+      }
+
+      return cards;
+    } catch (error) {
+      console.error('Error getting player cards:', error);
+      // Return empty array in case of error
+      return [];
+    }
+  }
+
   async executeParallelMoves(moves: MonadGameMove[]): Promise<{txHash: string, blockNumber: number}> {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
