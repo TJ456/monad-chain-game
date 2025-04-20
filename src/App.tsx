@@ -11,6 +11,7 @@ import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
 import Tournament from "./pages/Tournament";
 import NFTFeatures from "./pages/NFTFeatures";
+import NFTViewer from "./pages/NFTViewer";
 import NotFound from "./pages/NotFound";
 import Footer from "./components/ui/footer";
 import Navbar from "./components/ui/navbar";
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/nft-features" element={<NFTFeatures />} />
+              <Route path="/nft-viewer" element={<NFTViewer />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
