@@ -5,7 +5,7 @@ import { Card as GameCardType, CardRarity, CardType } from "@/types/game";
 import { cn } from "@/lib/utils";
 import { generateCardImage } from '@/utils/placeholderImages';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Zap, Shield, Wand2 } from 'lucide-react';
+import { Sparkles, Zap, Shield, Wand2, Flame, ArrowRight } from 'lucide-react';
 
 interface GameCardProps {
   card: GameCardType;
@@ -162,6 +162,36 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
                   </Tooltip>
                 </TooltipProvider>
               )}
+
+              {/* Chain Reaction Badge */}
+              {card.specialEffect?.chainReaction?.canTriggerChain && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-purple-500/30">
+                        <Zap className="h-3 w-3 text-purple-400" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-black/90 border-purple-500/50">
+                      <div className="text-xs">
+                        <span className="text-purple-400 font-bold">Chain Reaction</span>
+                        <div className="text-slate-300 mt-1">This card can trigger chain reactions on Monad</div>
+                        {card.specialEffect.chainReaction.parallelExecution && (
+                          <div className="text-blue-300 mt-1 flex items-center">
+                            <Zap className="h-3 w-3 mr-1" />
+                            Uses Monad's parallel execution
+                          </div>
+                        )}
+                        {card.specialEffect.chainReaction.triggerProbability && (
+                          <div className="text-amber-300 mt-1">
+                            {Math.round(card.specialEffect.chainReaction.triggerProbability * 100)}% success rate
+                          </div>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           </div>
 
@@ -190,6 +220,30 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
               <div className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 text-[8px] text-cyan-400 font-mono border border-cyan-500/20 rounded-sm">
                 MONAD
               </div>
+
+              {/* Active Effects Display */}
+              {card.activeEffects && card.activeEffects.length > 0 && (
+                <div className="absolute bottom-1 left-1 flex space-x-1">
+                  {card.activeEffects.map((effect, index) => (
+                    <TooltipProvider key={`${effect.id}-${index}`}>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <div className="bg-black/70 backdrop-blur-sm h-5 w-5 flex items-center justify-center rounded-full border border-purple-500/30">
+                            <Flame className="h-3 w-3 text-purple-400" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="bg-black/90 border-purple-500/50">
+                          <div className="text-xs">
+                            <span className="text-purple-400 font-bold">{effect.name}</span>
+                            <div className="text-slate-300 mt-1">Magnitude: {effect.magnitude}</div>
+                            <div className="text-slate-300">Duration: {effect.duration} turns</div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Rarity Indicator - Redesigned */}
@@ -254,6 +308,43 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
                   </div>
                 )}
               </div>
+
+              {/* Chain Reaction Effect Display */}
+              {card.specialEffect?.chainReaction?.canTriggerChain && (
+                <div className="mb-1 bg-purple-900/20 p-1 border border-purple-500/20 rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Zap className="h-3 w-3 text-purple-400 mr-1" />
+                      <span className="text-xs text-purple-400 font-medium">Chain Reaction</span>
+                    </div>
+                    <span className="text-xs text-purple-300">
+                      {Math.round((card.specialEffect.chainReaction.triggerProbability || 0.5) * 100)}%
+                    </span>
+                  </div>
+                  {card.specialEffect.chainReaction.chainedEffects && card.specialEffect.chainReaction.chainedEffects.length > 0 && (
+                    <div className="flex items-center mt-1 overflow-hidden">
+                      <div className="flex-shrink-0 h-3 w-3 rounded-full bg-purple-500/30 flex items-center justify-center">
+                        <div className="h-1.5 w-1.5 bg-purple-400"></div>
+                      </div>
+                      <ArrowRight className="h-2 w-2 text-purple-400 mx-1" />
+                      <div className="flex-shrink-0 h-3 w-3 rounded-full bg-blue-500/30 flex items-center justify-center">
+                        <div className="h-1.5 w-1.5 bg-blue-400"></div>
+                      </div>
+                      {card.specialEffect.chainReaction.chainedEffects.length > 1 && (
+                        <>
+                          <ArrowRight className="h-2 w-2 text-purple-400 mx-1" />
+                          <div className="flex-shrink-0 h-3 w-3 rounded-full bg-green-500/30 flex items-center justify-center">
+                            <div className="h-1.5 w-1.5 bg-green-400"></div>
+                          </div>
+                        </>
+                      )}
+                      <div className="ml-1 text-[8px] text-gray-400 truncate">
+                        Monad Parallel Execution
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Monad Blockchain Data - Redesigned */}
               <div className="mt-1">
