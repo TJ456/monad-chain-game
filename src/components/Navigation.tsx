@@ -44,7 +44,7 @@ const Navigation: React.FC = () => {
     const message = (
       <div className="space-y-4 text-sm">
         <div>
-          <p className="font-semibold">Add Monad Mainnet to MetaMask manually with these settings:</p>
+          <p className="font-semibold">Add Monad Testnet to MetaMask manually with these settings:</p>
           <div className="grid grid-cols-2 gap-1 mt-2">
             <span className="font-medium">Network Name:</span>
             <span>{config.chainName}</span>

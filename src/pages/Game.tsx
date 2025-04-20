@@ -27,6 +27,7 @@ import { Package, Shield, Sword, Zap, ExternalLink } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
 import { monadGameService } from '@/services/MonadGameService';
 import { getTransactionExplorerUrl } from '@/utils/blockchain';
+import OnChainMoves from '@/components/OnChainMoves';
 
 const STORAGE_KEY_SHARDS = "monad_game_shards";
 const STORAGE_KEY_LAST_REDEMPTION = "monad_game_last_redemption";
@@ -87,8 +88,12 @@ const Game = () => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [playerLastCards, setPlayerLastCards] = useState<GameCardType[]>([]);
   const [consecutiveDefenseCount, setConsecutiveDefenseCount] = useState(0);
+  const [player, setPlayer] = useState({
+    transactionHistory: []
+  });
   const [aiComboCounter, setAiComboCounter] = useState(0);
   const [isPlayerStunned, setPlayerStunned] = useState(false);
+  const [showOnChainMoves, setShowOnChainMoves] = useState(false);
 
   // Blockchain transaction tracking
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -415,7 +420,10 @@ const Game = () => {
   const handleBoostActivation = async (amount: number, boostEffect: number, duration: number) => {
     // Show transaction pending state
     setIsTransactionPending(true);
-    const txHash = `0x${Math.random().toString(16).substring(2, 42)}`; // Simulated hash
+    
+    // Generate a proper format mock transaction hash (32 bytes = 64 chars + 0x prefix)
+    const txHash = '0x' + Array.from({length: 64}, () => 
+      Math.floor(Math.random() * 16).toString(16)).join('');
 
     setCurrentTransaction({
       txHash,
@@ -1097,11 +1105,45 @@ const Game = () => {
     }
 
     try {
-        await monadGameService.redeemNFT();
-        // ... rest of your existing redemption logic ...
+        toast.loading("Processing NFT redemption on Monad blockchain...", {
+          id: "nft-redemption"
+        });
+
+        const result = await monadGameService.redeemNFT();
+
+        // Update player state with reduced shards
+        setPlayerData(prev => ({
+          ...prev,
+          shards: prev.shards - 10,
+          lastTrialTime: Date.now(),
+          dailyTrialsRemaining: prev.dailyTrialsRemaining - 1
+        }));
+
+        toast.success("NFT successfully redeemed!", {
+          id: "nft-redemption",
+          description: `Transaction confirmed in block #${result.blockNumber}. Check your collection!`
+        });
+
+        // Add transaction to history
+        setPlayer(prev => ({
+          ...prev,
+          transactionHistory: [
+            {
+              type: "NFT Redemption",
+              hash: result.txHash,
+              timestamp: Date.now(),
+              status: "Confirmed",
+              blockNumber: result.blockNumber
+            },
+            ...prev.transactionHistory
+          ]
+        }));
     } catch (error) {
         console.error("NFT redemption failed:", error);
-        toast.error("Failed to redeem NFT");
+        toast.error("Failed to redeem NFT", {
+          id: "nft-redemption",
+          description: error.message || "Transaction failed. Please try again."
+        });
     }
   };
 
@@ -1201,6 +1243,23 @@ const Game = () => {
             const shardTxHash = shardResult.txHash;
             const shardBlockNumber = shardResult.blockNumber;
 
+            // Track battle history for each card used by the player
+            if (playerDeck.length > 0) {
+                for (const card of playerDeck) {
+                    try {
+                        // Track battle history in IPFS
+                        await monadGameService.trackCardBattleHistory(
+                            card.id,
+                            movesBatch.batchId,
+                            'ai-opponent',
+                            'win'
+                        );
+                    } catch (error) {
+                        console.error(`Error tracking battle history for card ${card.id}:`, error);
+                    }
+                }
+            }
+
             // Add shard transaction with real data
             const shardTransaction: Transaction = {
                 txHash: shardTxHash,
@@ -1239,6 +1298,23 @@ const Game = () => {
                 duration: 5000,
               }
             );
+        }
+
+        // If player lost, track battle history for their cards
+        if (playerWon === false && playerDeck.length > 0) {
+            for (const card of playerDeck) {
+                try {
+                    // Track battle history in IPFS
+                    await monadGameService.trackCardBattleHistory(
+                        card.id,
+                        movesBatch.batchId,
+                        'ai-opponent',
+                        'loss'
+                    );
+                } catch (error) {
+                    console.error(`Error tracking battle history for card ${card.id}:`, error);
+                }
+            }
         }
 
         setIsTransactionPending(false);
@@ -1758,5 +1834,5 @@ const Game = () => {
                   <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
                 </div>
                 <div className="bg-black/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}    </div>  );}
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}      {gameStatus === 'playing' && (        <OnChainMoves          moves={pendingMoves}          isVisible={showOnChainMoves}          onToggle={() => setShowOnChainMoves(!showOnChainMoves)}        />      )}    </div>  );}
                   ;export default Game;

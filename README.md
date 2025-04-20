@@ -36,10 +36,10 @@ A blockchain-based card game built on the MONAD blockchain, featuring fast trans
 3. Create a `.env` file in the root directory with the following variables:
    ```
    VITE_MONAD_CONTRACT_ADDRESS=0x1234567890AbCdEfGh1234567890AbCdEfGh1234
-   VITE_NETWORK_ID=1
-   VITE_NETWORK_NAME=MONAD
-   VITE_API_URL=https://api.monad.network
-   VITE_INDEXER_URL=https://indexer.monad.network
+   VITE_NETWORK_ID=10143
+   VITE_NETWORK_NAME=MONAD_TESTNET
+   VITE_API_URL=https://testnet-api.monad.xyz
+   VITE_INDEXER_URL=https://testnet-indexer.monad.xyz
    VITE_ENABLE_TOURNAMENTS=true
    VITE_ENABLE_COMPOSABLE_CARDS=true
    VITE_ENABLE_PARALLEL_EXECUTION=true
