@@ -6,7 +6,19 @@ import { monadGameService } from '@/services/MonadGameService';
  * @returns Full URL to the transaction in the block explorer
  */
 export function getTransactionExplorerUrl(txHash: string): string {
-  return monadGameService.getExplorerUrl(txHash);
+  // Check if the transaction hash is valid (starts with 0x and is at least 8 chars long)
+  if (!txHash || !txHash.startsWith('0x') || txHash.length < 8) {
+    console.warn('Invalid transaction hash:', txHash);
+    // Return the explorer base URL if the hash is invalid
+    return monadGameService.getMonadNetworkConfig().blockExplorerUrls[0];
+  }
+
+  // Get the base URL from the configuration
+  const baseUrl = monadGameService.getMonadNetworkConfig().blockExplorerUrls[0];
+  // Ensure baseUrl doesn't end with a slash
+  const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  // Format: baseUrl/tx/transactionHash
+  return `${cleanBaseUrl}/tx/${txHash}`;
 }
 
 /**
