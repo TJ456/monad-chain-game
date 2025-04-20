@@ -48,13 +48,29 @@ export interface Card {
   // Special effect for card gameplay
   specialEffect?: {
     description: string;
-    effectType: 'BUFF' | 'DEBUFF' | 'SHIELD' | 'DRAIN' | 'STUN' | 'LEECH' | 'COMBO' | 'COUNTER';
-    type?: 'damage' | 'heal' | 'mana' | 'stun' | 'leech';  // Added for compatibility with existing code
+    effectType: 'BUFF' | 'DEBUFF' | 'SHIELD' | 'DRAIN' | 'STUN' | 'LEECH' | 'COMBO' | 'COUNTER' | 'TRANSFER' | 'MINT' | 'BURN';
+    type?: 'damage' | 'heal' | 'mana' | 'stun' | 'leech' | 'nft';  // Added for compatibility with existing code
     value?: number;            // Added for compatibility with existing code
     duration?: number;         // For effects that last multiple turns
     triggerCondition?: string; // For conditional effects
     comboWith?: string[];     // For combo effects with other cards
+    chainReaction?: {         // For chain reaction effects
+      canTriggerChain: boolean;
+      chainedEffects?: string[];
+      triggerProbability?: number;
+      parallelExecution?: boolean; // Whether this effect uses Monad's parallel execution
+      executionTimeMs?: number;    // Execution time in milliseconds (for display)
+    };
   };
+
+  // Active effects currently applied to this card
+  activeEffects?: {
+    id: string;
+    name: string;
+    duration: number;
+    magnitude: number;
+    source?: string; // ID of the card or effect that applied this effect
+  }[];
 }
 
 export interface Player {
