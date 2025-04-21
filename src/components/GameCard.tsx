@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { generateCardImage } from '@/utils/placeholderImages';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, Zap, Shield, Wand2, Flame, ArrowRight } from 'lucide-react';
+import ManaCost from '@/components/ui/mana-cost';
 
 interface GameCardProps {
   card: GameCardType;
@@ -140,9 +141,22 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
               {typeIcons[card.type]}
             </div>
 
+            {/* Mana cost badge - integrated with card design */}
+            <div className="absolute top-0 left-0 z-20 p-1.5 bg-gradient-to-br from-black/80 to-transparent rounded-tl-md">
+              <ManaCost
+                cost={card.mana}
+                size="sm"
+                showAnimation={isHovered}
+                isAffordable={true}
+                variant="tech"
+                cardRarity={card.rarity.toLowerCase() as 'common' | 'rare' | 'epic' | 'legendary'}
+                className="shadow-md"
+              />
+            </div>
+
             {/* Card name with tech-inspired styling */}
             <div className="pt-3 pb-1 flex items-center">
-              <div className="text-lg font-bold text-white truncate tracking-wide">
+              <div className="text-lg font-bold text-white truncate tracking-wide pl-10">
                 {card.name}
               </div>
               {card.boosted && (
@@ -270,10 +284,10 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
 
               {/* Stats display - Redesigned */}
               <div className="grid grid-cols-3 gap-1 mb-1">
-                {/* Mana stat */}
-                <div className="flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-1 border border-blue-500/20 rounded-md">
-                  <span className="text-xs text-blue-300">MANA</span>
-                  <span className="text-sm font-semibold text-blue-400">{card.mana}</span>
+                {/* Special ability stat instead of mana (since mana is now prominent at top) */}
+                <div className="flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm p-1 border border-purple-500/20 rounded-md">
+                  <span className="text-xs text-purple-300">ABILITY</span>
+                  <span className="text-sm font-semibold text-purple-400">{card.special || '-'}</span>
                 </div>
 
                 {/* Attack stat */}

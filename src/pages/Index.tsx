@@ -72,9 +72,9 @@ const Index = () => {
 
       <ObysStyleIntro />
 
-      <div className="container mx-auto pt-24 px-4 md:px-0 pb-16">
+      <div className="container mx-auto pt-36 px-4 md:px-6 pb-16">
         {/* Features Section */}
-        <div ref={featuresHeadingRef} className="overflow-hidden mb-8">
+        <div ref={featuresHeadingRef} className="overflow-hidden mb-16">
           <motion.h2
             className="text-3xl font-bold text-white relative inline-block"
             initial={{ opacity: 0, x: -100 }}
@@ -159,7 +159,7 @@ const Index = () => {
             </motion.h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 mb-8 overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-10 mb-12 overflow-hidden">
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={isHowToPlayInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
@@ -238,7 +238,7 @@ const Index = () => {
                 </span>
               </AccordionTrigger>
               <AccordionContent className="text-gray-300">
-                <div ref={advancedMechanicsRef} className="grid md:grid-cols-3 gap-6 mt-4 overflow-hidden">
+                <div ref={advancedMechanicsRef} className="grid md:grid-cols-3 gap-8 mt-6 overflow-hidden">
                   <div className="opacity-0 bg-black/30 p-4 rounded-lg border border-emerald-500/10 hover:border-emerald-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 card-3d-hover animate-drop">
 
                     <h4 className="text-lg font-bold text-white mb-2 flex items-center">
@@ -325,7 +325,7 @@ const Index = () => {
             />
           </motion.h2>
 
-          <div className="grid md:grid-cols-3 gap-8 overflow-hidden">
+          <div className="grid md:grid-cols-3 gap-10 overflow-hidden mt-8">
             <motion.div
               className="bg-black/30 p-4 rounded-lg border border-emerald-500/20 hover:border-emerald-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 card-3d-hover"
               initial={{ opacity: 0, x: -50 }}

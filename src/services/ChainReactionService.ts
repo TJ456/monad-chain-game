@@ -1,4 +1,6 @@
 import { monadGameService } from './MonadGameService';
+import { monadChainReactionService } from './MonadChainReactionService';
+import { monadNFTService, MintedNFT } from './MonadNFTService';
 import { toast } from "sonner";
 import { Card as GameCardType } from '@/types/game';
 
@@ -31,6 +33,7 @@ export interface ChainReactionResult {
   parallelSpeedup?: number; // How much faster than sequential execution
   gasUsed?: number; // Simulated gas usage
   networkLatency?: number; // Network latency in ms
+  mintedNFT?: MintedNFT; // NFT minted during the chain reaction
 }
 
 class ChainReactionService {
@@ -127,11 +130,49 @@ class ChainReactionService {
       throw new Error(`Chain reaction effect ${effectId} not found`);
     }
 
-    // For demo purposes, we'll simulate the chain reaction
-    // In a real implementation, this would call smart contract functions
-
     const toastId = `chain-reaction-${effectId}-${Date.now()}`;
     toast.loading(`Initiating Monad chain reaction: ${effect.name}`, { id: toastId });
+
+    try {
+      // Try to use the real Monad blockchain implementation
+      console.log('Attempting to trigger chain reaction on Monad blockchain...');
+      const result = await monadChainReactionService.triggerChainReaction(
+        effect.id,
+        targetId || 'player',
+        effect.magnitude,
+        effect.duration
+      );
+
+      // If successful, return the result
+      if (result.success) {
+        console.log('Chain reaction successfully executed on Monad blockchain');
+        return result;
+      }
+
+      // If the blockchain transaction failed, fall back to simulation
+      console.warn('Blockchain transaction failed, falling back to simulation');
+      toast.loading('Blockchain transaction failed, using simulation instead', { id: toastId });
+    } catch (error) {
+      // If there was an error with the blockchain, fall back to simulation
+      console.error('Error triggering chain reaction on blockchain:', error);
+      toast.loading('Error connecting to Monad blockchain, using simulation instead', { id: toastId });
+    }
+
+    // Fallback to simulation if blockchain transaction failed
+    return this.simulateChainReaction(effect, startTime, toastId, sourceCardId, targetId);
+  }
+
+  /**
+   * Simulate a chain reaction (fallback when blockchain is not available)
+   */
+  private async simulateChainReaction(
+    effect: ChainEffect,
+    startTime: number,
+    toastId: string,
+    sourceCardId?: string,
+    targetId?: string
+  ): Promise<ChainReactionResult> {
+    console.log('Simulating chain reaction locally...');
 
     // Track all effects that were triggered
     const triggeredEffects: ChainReactionResult['effects'] = [];
@@ -198,13 +239,41 @@ class ChainReactionService {
         }
       }
 
-      // Simulate minting a card if this was a successful chain reaction
+      // Handle special effects based on the effect type
       if (totalEffectsTriggered > 0) {
         try {
-          // Only actually mint a card if we have a source card ID
-          // This prevents unintended minting when just demonstrating
           let txResult;
-          if (sourceCardId) {
+          let mintedNFT;
+
+          // Handle Airdrop Strike effect - mint an NFT
+          if (effect.id === 'airdrop-strike') {
+            console.log('Airdrop Strike activated - minting NFT on Monad blockchain');
+            toast.loading(`Minting surprise NFT token to your wallet...`, { id: toastId });
+
+            // Generate a random quality between 1-100
+            const tokenQuality = Math.floor(Math.random() * 100) + 1;
+
+            try {
+              // Try to mint the NFT on the real blockchain
+              mintedNFT = await monadNFTService.mintSurpriseToken(tokenQuality);
+              txResult = {
+                txHash: mintedNFT.transactionHash,
+                blockNumber: mintedNFT.blockNumber
+              };
+
+              toast.loading(`NFT minted successfully! Adding to your wallet...`, { id: toastId });
+            } catch (error) {
+              console.error('Error minting NFT on blockchain:', error);
+              // Fallback to simulation
+              mintedNFT = monadNFTService.simulateMintedNFT();
+              txResult = {
+                txHash: mintedNFT.transactionHash,
+                blockNumber: mintedNFT.blockNumber
+              };
+            }
+          }
+          // Handle Blockchain Hack effect - mint a card
+          else if (effect.id === 'blockchain-hack' && sourceCardId) {
             txResult = await monadGameService.mintCard({
               name: effect.name,
               description: effect.description,
@@ -216,14 +285,14 @@ class ChainReactionService {
               special: effect.triggerProbability * 100
             });
           } else {
-            // Simulate a transaction result
+            // Simulate a transaction result for other effects
             txResult = {
               txHash: `0x${Math.random().toString(16).substring(2, 42)}`,
               blockNumber: Math.floor(Date.now() / 1000)
             };
           }
 
-          toast.success(`Chain Reaction Complete!`, {
+          toast.success(`Chain Reaction Complete! (Simulation)`, {
             id: toastId,
             description: `${totalEffectsTriggered} effects triggered in ${Date.now() - startTime}ms on Monad blockchain`
           });
@@ -250,11 +319,12 @@ class ChainReactionService {
             executionTimeMs: executionTime,
             parallelSpeedup: parseFloat(parallelSpeedup.toFixed(2)),
             gasUsed,
-            networkLatency
+            networkLatency,
+            mintedNFT: mintedNFT // Include the minted NFT if available
           };
         } catch (error) {
-          console.error('Error in chain reaction:', error);
-          toast.error(`Chain reaction encountered an error`, { id: toastId });
+          console.error('Error in chain reaction simulation:', error);
+          toast.error(`Chain reaction simulation encountered an error`, { id: toastId });
 
           const executionTime = Date.now() - startTime;
           return {
@@ -287,6 +357,38 @@ class ChainReactionService {
       networkLatency: Math.floor(Math.random() * 50) + 10,
       gasUsed: initialSuccess ? 35000 : 25000 // Different gas usage based on success
     };
+  }
+
+  /**
+   * Simulate a blockchain transaction
+   * This is used as a fallback when the real blockchain transaction fails
+   */
+  private async simulateBlockchainTransaction(numEffects: number = 1): Promise<{ txHash: string, blockNumber: number }> {
+    try {
+      // Try to use the Monad blockchain explorer URL for the transaction hash
+      const explorerUrl = monadChainReactionService.getExplorerUrl('');
+      const baseUrl = explorerUrl.split('/tx/')[0];
+
+      // Generate a realistic transaction hash
+      const txHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+
+      // Simulate blockchain delay based on number of effects (would be much faster on Monad)
+      const delay = Math.min(1000, 200 * numEffects);
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      return {
+        txHash,
+        blockNumber: Math.floor(Date.now() / 1000) // Use current timestamp as mock block number
+      };
+    } catch (error) {
+      console.error('Error simulating blockchain transaction:', error);
+
+      // Fallback to completely simulated transaction
+      return {
+        txHash: `0x${Math.random().toString(16).substring(2, 42)}`,
+        blockNumber: Math.floor(Date.now() / 1000)
+      };
+    }
   }
 
   /**

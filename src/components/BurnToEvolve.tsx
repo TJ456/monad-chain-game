@@ -249,113 +249,236 @@ const BurnToEvolve: React.FC = () => {
   const evolvedCard = getPotentialResult();
 
   return (
-    <Card className="glassmorphism border-orange-500/30 p-6 relative">
-      <div className="flex items-center space-x-4 mb-6">
-        <div className="h-10 w-10 rounded-full bg-orange-500/30 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-orange-500/40 p-8 h-full flex flex-col shadow-xl relative overflow-hidden">
+      {/* Animated flame particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(15)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-3 h-3 rounded-full flame-particle"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              opacity: Math.random() * 0.5 + 0.2,
+              animationDuration: `${Math.random() * 3 + 2}s`,
+              animationDelay: `${Math.random() * 2}s`,
+              background: `radial-gradient(circle, rgba(255,${Math.random() * 100 + 100},0,0.8) 0%, rgba(255,${Math.random() * 50 + 50},0,0) 70%)`
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Transparent violet emoji outlines */}
+      <div className="absolute -right-8 -top-8 text-8xl opacity-10 transform rotate-12 pointer-events-none">🔥</div>
+      <div className="absolute -left-8 bottom-20 text-7xl opacity-10 transform -rotate-12 pointer-events-none">⚡</div>
+      <div className="absolute right-10 bottom-10 text-6xl opacity-10 transform rotate-6 pointer-events-none">✨</div>
+
+      <div className="flex items-center space-x-4 mb-6 relative z-10">
+        <div className="h-12 w-12 rounded-md bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center shadow-lg shadow-orange-600/20">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
           </svg>
         </div>
         <div>
-          <h3 className="text-xl font-bold text-white">Burn-to-Evolve</h3>
-          <p className="text-gray-400">Sacrifice cards to create more powerful ones</p>
+          <h3 className="text-2xl font-bold text-white text-shadow-glow-orange">Burn-to-Evolve</h3>
+          <p className="text-gray-300 mt-1">Sacrifice cards to create more powerful ones on Monad blockchain</p>
         </div>
-        <Badge className="ml-auto bg-orange-600 text-white">Deflationary</Badge>
+        <Badge className="ml-auto bg-gradient-to-r from-orange-600 to-red-600 text-white px-3 py-1 text-sm shadow-md shadow-orange-900/30">Deflationary</Badge>
       </div>
+
+      <div className="flex-grow relative z-10">
 
       {step === 1 && (
         <>
           <div className="text-center mb-6">
-            <h4 className="text-white font-medium">Select Cards to Burn</h4>
-            <p className="text-sm text-gray-400">Sacrifice two cards to mint a more powerful one</p>
+            <h4 className="text-xl font-bold text-white">Select Cards to Burn</h4>
+            <p className="text-sm text-gray-300 mt-2">Sacrifice two cards to mint a more powerful one</p>
           </div>
 
           <Button
-            className="w-full mb-4 bg-gradient-to-r from-blue-600 to-indigo-600"
+            className="w-full mb-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-12 text-base font-medium shadow-md shadow-orange-900/20 transition-all duration-300 hover:shadow-lg hover:shadow-orange-900/30 group relative overflow-hidden"
             onClick={openInventoryDialog}
           >
-            Select Cards from Inventory
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span className="relative z-10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              Select Cards from Inventory
+            </span>
           </Button>
 
           {/* Preview notification when two cards are selected */}
           {showPreviewNotification && potentialEvolvedCard && (
-            <Alert className="mb-4 bg-black/30 border-orange-500/30">
-              <AlertTitle className="text-orange-400">Evolution Preview</AlertTitle>
+            <Alert className="mb-4 bg-gradient-to-br from-black/40 to-orange-950/20 border-orange-500/40 shadow-md relative overflow-hidden">
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-orange-500/10 to-red-500/5 rounded-full blur-xl"></div>
+              </div>
+              <AlertTitle className="text-orange-400 font-bold flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Evolution Preview
+              </AlertTitle>
               <AlertDescription className="text-gray-300">
-                <div className="text-sm mb-2">
+                <div className="text-sm mb-2 mt-1">
                   Burning these cards will create:
                 </div>
-                <div className="font-bold text-white mb-1">{potentialEvolvedCard.name}</div>
-                <div className="flex justify-between text-xs">
-                  <span>Rarity: <span className={`font-bold ${potentialEvolvedCard.rarity === CardRarity.EPIC ? 'text-purple-400' : potentialEvolvedCard.rarity === CardRarity.RARE ? 'text-blue-400' : 'text-gray-400'}`}>{potentialEvolvedCard.rarity}</span></span>
-                  <span>Power: <span className="text-green-400 font-bold">+{Math.round((potentialEvolvedCard.attack || 0) * 100 / (selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0) || 1) - 100)}%</span></span>
+                <div className="font-bold text-white text-lg mb-2 flex items-center">
+                  <span className="mr-2">{potentialEvolvedCard.name}</span>
+                  <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded-full border border-orange-500/30">
+                    New Card
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-black/30 p-2 rounded border border-orange-500/20 flex items-center">
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
+                    <span className="text-gray-300">Rarity: </span>
+                    <span className={`ml-auto font-bold ${potentialEvolvedCard.rarity === CardRarity.EPIC ? 'text-purple-400' : potentialEvolvedCard.rarity === CardRarity.RARE ? 'text-blue-400' : 'text-gray-400'}`}>
+                      {potentialEvolvedCard.rarity}
+                    </span>
+                  </div>
+                  <div className="bg-black/30 p-2 rounded border border-orange-500/20 flex items-center">
+                    <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
+                    <span className="text-gray-300">Power: </span>
+                    <span className="ml-auto text-green-400 font-bold">
+                      +{Math.round((potentialEvolvedCard.attack || 0) * 100 / (selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0) || 1) - 100)}%
+                    </span>
+                  </div>
                 </div>
                 {potentialEvolvedCard.specialEffect && (
-                  <div className="mt-1 text-xs text-purple-400">
-                    Special: {potentialEvolvedCard.specialEffect.description}
+                  <div className="mt-2 p-2 bg-purple-900/20 border border-purple-500/30 rounded text-xs text-purple-300 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span>Special Effect: {potentialEvolvedCard.specialEffect.description}</span>
                   </div>
                 )}
               </AlertDescription>
             </Alert>
           )}
 
-          <div className="flex justify-center space-x-4 mt-4 mb-6">
-            {selectedCards.map((card) => (
-              <div key={card.id}>
-                <GameCard card={card} showDetails={false} />
-                <div className="mt-2 text-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCardSelect(card)}
-                    className="text-xs text-red-400 border-red-400/50"
-                  >
-                    Remove
-                  </Button>
+          <div className="flex justify-center space-x-6 mt-6 mb-8">
+            {selectedCards.map((card, index) => (
+              <div key={card.id} className="relative group">
+                <div className="absolute -inset-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg blur-sm group-hover:blur-md transition-all duration-300"></div>
+                <div className="relative">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg opacity-50 animate-pulse-slow"></div>
+                  <div className="relative bg-black rounded-lg p-1 z-10">
+                    <GameCard card={card} showDetails={false} />
+                  </div>
+                  <div className="absolute -top-3 -right-3 bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md shadow-red-900/30 z-20">
+                    {index + 1}
+                  </div>
+                  <div className="mt-3 text-center relative z-10">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCardSelect(card)}
+                      className="text-xs text-red-400 border-red-400/50 hover:bg-red-950/30 hover:text-red-300 transition-colors duration-300"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
 
             {selectedCards.length === 1 && (
               <div className="flex items-center">
-                <span className="text-orange-400 text-2xl">+</span>
-                <div className="w-20 h-28 border border-dashed border-orange-500/50 rounded-md flex items-center justify-center">
-                  <span className="text-orange-400/70 text-xs">Select one more</span>
+                <span className="text-orange-400 text-3xl mx-2 animate-pulse">+</span>
+                <div className="relative group cursor-pointer" onClick={openInventoryDialog}>
+                  <div className="absolute -inset-2 bg-gradient-to-r from-orange-500/10 to-red-500/10 rounded-lg blur-sm group-hover:blur-md transition-all duration-300"></div>
+                  <div className="w-[140px] h-[200px] border-2 border-dashed border-orange-500/50 rounded-lg flex flex-col items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors duration-300 relative z-10">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-orange-500/70 mb-2 group-hover:text-orange-400 transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span className="text-orange-400/70 text-sm group-hover:text-orange-300 transition-colors duration-300">Select one more</span>
+                  </div>
                 </div>
               </div>
             )}
 
             {selectedCards.length === 0 && (
-              <div className="text-center text-orange-400/70 text-sm">
-                Select two cards to burn
+              <div className="w-full max-w-md bg-gradient-to-br from-orange-950/30 to-red-950/30 p-6 rounded-lg border border-orange-500/30 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-orange-500/70 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h5 className="text-white font-medium mb-2">No Cards Selected</h5>
+                <p className="text-orange-300/70 text-sm mb-4">Select two cards to burn and evolve into a more powerful card</p>
+                <Button
+                  variant="outline"
+                  className="border-orange-500/50 text-orange-400 hover:bg-orange-950/30"
+                  onClick={openInventoryDialog}
+                >
+                  Open Inventory
+                </Button>
               </div>
             )}
           </div>
 
           {/* Inventory Selection Dialog */}
           <Dialog open={showInventoryDialog} onOpenChange={setShowInventoryDialog}>
-            <DialogContent className="bg-gray-900 border-orange-500/30 text-white max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="bg-gradient-to-br from-gray-900 to-gray-950 border-orange-500/40 text-white max-w-4xl max-h-[80vh] overflow-y-auto shadow-xl">
               <DialogHeader>
-                <DialogTitle className="text-xl text-orange-400">Select Cards from Inventory</DialogTitle>
-                <DialogDescription className="text-gray-400">
-                  Choose two cards to burn and evolve into a more powerful card.
+                <DialogTitle className="text-xl text-orange-400 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Select Cards from Inventory
+                </DialogTitle>
+                <DialogDescription className="text-gray-300">
+                  Choose two cards to burn and evolve into a more powerful card on the Monad blockchain.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="grid grid-cols-3 gap-4 my-6">
+              <div className="bg-black/30 p-3 rounded-lg border border-orange-500/20 mb-4">
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-orange-300">Selected: {selectedCards.length}/2 cards</span>
+                  <div className="ml-auto flex space-x-1">
+                    {[...Array(2)].map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-4 h-4 rounded-full ${i < selectedCards.length ? 'bg-orange-500' : 'bg-gray-700'} transition-colors duration-300`}
+                      ></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 my-6">
                 {playerDeck.map((card) => (
                   <div
                     key={card.id}
                     onClick={() => handleCardSelect(card)}
-                    className={`cursor-pointer transition-all ${selectedCards.some(c => c.id === card.id) ?
-                      'ring-2 ring-orange-500 scale-105' : 'opacity-80 hover:opacity-100'}`}
+                    className={`cursor-pointer transition-all duration-300 ${selectedCards.some(c => c.id === card.id) ?
+                      'ring-2 ring-orange-500 scale-105 shadow-lg shadow-orange-500/20' :
+                      'opacity-80 hover:opacity-100 hover:shadow-md hover:shadow-orange-500/10'}`}
                   >
-                    <GameCard card={card} showDetails={true} />
-                    <div className="mt-1 text-center">
-                      <span className={`text-xs capitalize font-semibold ${card.rarity === CardRarity.COMMON ? 'text-gray-400' : card.rarity === CardRarity.RARE ? 'text-blue-400' : card.rarity === CardRarity.EPIC ? 'text-purple-400' : 'text-yellow-400'}`}>
-                        {card.rarity}
-                      </span>
+                    <div className="relative">
+                      <GameCard card={card} showDetails={true} />
+                      {selectedCards.some(c => c.id === card.id) && (
+                        <div className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20">
+                          {selectedCards.findIndex(c => c.id === card.id) + 1}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 p-2 bg-black/40 rounded-md">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-xs capitalize font-semibold ${card.rarity === CardRarity.COMMON ? 'text-gray-400' : card.rarity === CardRarity.RARE ? 'text-blue-400' : card.rarity === CardRarity.EPIC ? 'text-purple-400' : 'text-yellow-400'}`}>
+                          {card.rarity}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          Power: <span className="text-white">{card.attack || 0}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -363,49 +486,108 @@ const BurnToEvolve: React.FC = () => {
 
               <DialogFooter>
                 <Button
-                  className="bg-gradient-to-r from-orange-600 to-red-600"
+                  className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-10 px-6 shadow-md shadow-orange-900/20 transition-all duration-300 hover:shadow-lg hover:shadow-orange-900/30"
                   onClick={() => setShowInventoryDialog(false)}
                 >
-                  Confirm Selection ({selectedCards.length}/2)
+                  <span className="flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Confirm Selection ({selectedCards.length}/2)
+                  </span>
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <div className="bg-black/30 p-4 rounded-lg border border-orange-500/20 mb-6">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-400">Success Rate</span>
-              <span className="text-orange-400 font-bold">
-                {selectedCards.length === 2 ? '100%' : '0%'}
-              </span>
+          <div className="bg-gradient-to-br from-black/40 to-orange-950/20 p-5 rounded-lg border border-orange-500/30 mb-6 shadow-md">
+            <h4 className="text-white font-medium mb-3 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Evolution Stats
+            </h4>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-black/30 p-3 rounded-lg border border-orange-500/20 flex flex-col">
+                <div className="flex items-center mb-1">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 mr-2 animate-pulse"></div>
+                  <span className="text-xs text-orange-300 font-medium">Success Rate</span>
+                </div>
+                <div className="flex items-center justify-center">
+                  <span className="text-xl font-bold text-white">
+                    {selectedCards.length === 2 ? '100' : '0'}<span className="text-sm text-orange-400">%</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-black/30 p-3 rounded-lg border border-orange-500/20 flex flex-col">
+                <div className="flex items-center mb-1">
+                  <div className="w-2 h-2 rounded-full bg-orange-500 mr-2 animate-pulse"></div>
+                  <span className="text-xs text-orange-300 font-medium">New Card Rarity</span>
+                </div>
+                <div className="flex items-center justify-center">
+                  <span className={`text-xl font-bold ${
+                    selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'text-purple-400' :
+                    selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'text-blue-400' :
+                    'text-gray-400'
+                  }`}>
+                    {selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'Epic' :
+                     selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'Rare' :
+                     'Common'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">New Card Rarity</span>
-              <span className={`font-bold ${
-                selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'text-purple-400' :
-                selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'text-blue-400' :
-                'text-gray-400'
-              }`}>
-                {selectedCards.some(c => c.rarity === CardRarity.EPIC) ? 'Epic' :
-                 selectedCards.some(c => c.rarity === CardRarity.RARE) ? 'Rare' :
-                 'Common'}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-gray-400">Burn Transaction Fee</span>
-              <span className="text-orange-400 font-bold">5 MONAD</span>
+
+            <div className="mt-3 bg-orange-900/20 p-3 rounded-lg border border-orange-500/30 flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <div className="flex-1">
+                <div className="text-sm text-orange-300 font-medium">Burn Transaction Fee</div>
+                <div className="text-xs text-gray-400">Paid to Monad blockchain for evolution</div>
+              </div>
+              <span className="text-xl font-bold text-orange-400">5 <span className="text-sm">MONAD</span></span>
             </div>
           </div>
 
           <Button
-            className="w-full bg-gradient-to-r from-orange-600 to-red-600"
+            className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-14 text-lg font-bold shadow-md shadow-orange-900/20 transition-all duration-300 hover:shadow-lg hover:shadow-orange-900/30 group relative overflow-hidden"
             onClick={handleBurn}
             disabled={isProcessing || selectedCards.length < 2 || playerMonad < 5}
           >
-            {isProcessing ? "Processing..." :
-             selectedCards.length < 2 ? "Select 2 Cards" :
-             playerMonad < 5 ? "Need 5 MONAD" :
-             "Burn Cards"}
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <span className="relative z-10 flex items-center justify-center">
+              {isProcessing ? (
+                <>
+                  <div className="animate-spin h-5 w-5 mr-3 border-2 border-white border-t-transparent rounded-full"></div>
+                  <span>Processing on Monad...</span>
+                </>
+              ) : selectedCards.length < 2 ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Select 2 Cards
+                </>
+              ) : playerMonad < 5 ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Need 5 MONAD
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+                  </svg>
+                  Burn Cards & Evolve
+                </>
+              )}
+            </span>
           </Button>
         </>
       )}
@@ -502,7 +684,8 @@ const BurnToEvolve: React.FC = () => {
         </>
       )}
 
-      <div className="mt-4 text-center text-xs text-gray-500">
+      </div>
+      <div className="mt-4 text-center text-xs text-gray-500 relative z-10">
         Powered by Monad's deflationary NFT mechanics
       </div>
     </Card>
