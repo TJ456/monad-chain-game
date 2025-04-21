@@ -1,8 +1,31 @@
 # filepath: render.yaml
 services:
+  # Frontend web application
   - type: web
-    name: my-app
+    name: monad-game-frontend
     env: node
     buildCommand: npm install && npm run build
     startCommand: npm start
     plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: VITE_WEBSOCKET_URL
+        fromService:
+          name: monad-game-websocket
+          type: web
+          property: url
+        sync: false
+
+  # WebSocket server
+  - type: web
+    name: monad-game-websocket
+    env: node
+    buildCommand: npm install && npm run build:server
+    startCommand: node server/dist/websocket-server.js
+    plan: free
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: PORT
+        value: 8081

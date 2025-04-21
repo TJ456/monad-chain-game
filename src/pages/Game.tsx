@@ -3,6 +3,7 @@ import Navigation from '@/components/Navigation';
 import { Card as UICard } from "@/components/ui/card";
 import GameCard from '@/components/GameCard';
 import MonadStatus from '@/components/MonadStatus';
+import MonadDbStatus from '@/components/MonadDbStatus';
 import ShardManager from '@/components/ShardManager';
 import MonadBoostMechanic from '@/components/MonadBoostMechanic';
 import GameRoomSelector from '@/components/GameRoomSelector';
@@ -27,9 +28,10 @@ import { toast } from "sonner";
 import { cards, currentPlayer, monadGameState } from '@/data/gameData';
 import { Card as GameCardType, MonadGameMove, CardType, AIDifficultyTier, TierRequirement, Player as PlayerType, MovesBatch, GameMode, GameRoom } from '@/types/game';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Package, Shield, Sword, Zap, ExternalLink } from 'lucide-react';
+import { Package, Shield, Sword, Zap, ExternalLink, Database, WifiOff } from 'lucide-react';
 import { aiStrategies, selectCardNovice, selectCardVeteran, selectCardLegend, getAIThinkingMessage, enhanceAICards } from '@/data/aiStrategies';
 import { monadGameService } from '@/services/MonadGameService';
+import { monadDbIntegration } from '@/services/MonadDbIntegration';
 import { getTransactionExplorerUrl } from '@/utils/blockchain';
 import OnChainMoves from '@/components/OnChainMoves';
 
@@ -102,6 +104,8 @@ const Game = () => {
   const [aiComboCounter, setAiComboCounter] = useState(0);
   const [isPlayerStunned, setPlayerStunned] = useState(false);
   const [showOnChainMoves, setShowOnChainMoves] = useState(false);
+  const [showMonadDbStatus, setShowMonadDbStatus] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
 
   // Blockchain transaction tracking
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -160,7 +164,24 @@ const Game = () => {
   }, [allPlayerCards]);
 
   useEffect(() => {
+    // Monitor WebSocket connection status
+    const wsService = WebSocketService.getInstance();
+    wsService.addConnectionStatusListener(setIsConnected);
+
+    return () => {
+      wsService.removeConnectionStatusListener(setIsConnected);
+    };
+  }, []);
+
+  useEffect(() => {
     const initializeBlockchain = async () => {
+      // Initialize MonadDb integration
+      try {
+        await monadDbIntegration.initialize();
+        console.log('MonadDb integration initialized');
+      } catch (error) {
+        console.error('Error initializing MonadDb:', error);
+      }
         try {
             // Connect wallet
             const address = await monadGameService.connectWallet();
@@ -1603,27 +1624,37 @@ const Game = () => {
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h2 className="text-2xl font-bold text-white">MONAD Battle</h2>
-                  <p className="text-gray-400 text-sm">
-                    {gameMode === GameMode.PRACTICE ? (
-                      <>
-                        Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
-                        <span className="mx-2">•</span>
-                        {renderManaExplanation()}
-                      </>
-                    ) : (
-                      <>
-                        Mode: <span className="text-blue-400">1v1 Game Room</span>
-                        <span className="mx-2">•</span>
-                        {renderManaExplanation()}
-                        {currentRoom && (
-                          <>
-                            <span className="mx-2">•</span>
-                            Room: <span className="text-blue-400 font-mono">{currentRoom.roomCode}</span>
-                          </>
-                        )}
-                      </>
+                  <div className="flex items-center justify-between">
+                    <p className="text-gray-400 text-sm">
+                      {gameMode === GameMode.PRACTICE ? (
+                        <>
+                          Difficulty: <span className="text-emerald-400 capitalize">{aiDifficulty}</span>
+                          <span className="mx-2">•</span>
+                          {renderManaExplanation()}
+                        </>
+                      ) : (
+                        <>
+                          Mode: <span className="text-blue-400">1v1 Game Room</span>
+                          <span className="mx-2">•</span>
+                          {renderManaExplanation()}
+                          {currentRoom && (
+                            <>
+                              <span className="mx-2">•</span>
+                              Room: <span className="text-blue-400 font-mono">{currentRoom.roomCode}</span>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </p>
+
+                    {/* Connection status indicator */}
+                    {!isConnected && (
+                      <div className="flex items-center bg-red-900/30 text-red-400 text-xs px-2 py-0.5 rounded-full border border-red-500/30 animate-pulse">
+                        <WifiOff className="h-3 w-3 mr-1" />
+                        Reconnecting...
+                      </div>
                     )}
-                  </p>
+                  </div>
 
                   {/* Game Sync Status - Only show for Game Room mode */}
                   {gameMode === GameMode.GAMEROOM && currentRoom && (
@@ -1708,6 +1739,26 @@ const Game = () => {
                           />
                         </div>
                       </div>
+
+                      {/* MonadDb Status Button */}
+                      <div className="mb-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10 w-full"
+                          onClick={() => setShowMonadDbStatus(!showMonadDbStatus)}
+                        >
+                          <Database className="h-3 w-3 mr-1" />
+                          {showMonadDbStatus ? 'Hide' : 'Show'} MonadDb Status
+                        </Button>
+                      </div>
+
+                      {/* MonadDb Status Panel */}
+                      {showMonadDbStatus && (
+                        <div className="mb-4">
+                          <MonadDbStatus />
+                        </div>
+                      )}
 
                       <div className="mb-6">
                         <div className="flex justify-between items-center mb-2">

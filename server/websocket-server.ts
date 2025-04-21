@@ -48,19 +48,23 @@ class GameWebSocketServer {
   private pingInterval: NodeJS.Timeout;
 
   constructor(port: number) {
-    this.wss = new WebSocketServer({ port });
-    console.log(`WebSocket server started on port ${port}`);
+    // Create WebSocket server with path /ws
+    this.wss = new WebSocketServer({
+      port,
+      path: '/ws'
+    });
+    console.log(`WebSocket server started on port ${port} with path /ws`);
 
     this.wss.on('connection', this.handleConnection.bind(this));
     this.wss.on('error', this.handleServerError.bind(this));
 
     // Set up ping interval to keep connections alive
-    this.pingInterval = setInterval(this.pingClients.bind(this), 15000);
+    this.pingInterval = setInterval(this.pingClients.bind(this), 10000); // Reduced to 10 seconds
   }
 
   private handleConnection(socket: WebSocket): void {
     const clientId = randomUUID();
-    
+
     // Initialize client with default values
     this.clients.set(clientId, {
       id: clientId,
@@ -149,7 +153,7 @@ class GameWebSocketServer {
 
     // Update client info
     client.userId = message.payload.userId || 'anonymous';
-    
+
     // If client is reconnecting with a session ID, try to restore session
     if (message.payload.sessionId) {
       // In a real implementation, we would validate the session ID
@@ -401,7 +405,7 @@ class GameWebSocketServer {
 
   private pingClients(): void {
     const now = Date.now();
-    
+
     // Send ping to all clients
     for (const [clientId, client] of this.clients.entries()) {
       // Check if client has been inactive for too long (60 seconds)
@@ -449,7 +453,7 @@ class GameWebSocketServer {
 }
 
 // Start the server
-const PORT = 8081;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8082; // Changed from 8081 to 8082
 const server = new GameWebSocketServer(PORT);
 
 // Handle process termination
@@ -459,4 +463,4 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-console.log(`WebSocket server running on ws://localhost:${PORT}/ws`);
+console.log(`WebSocket server running on port ${PORT} with path /ws`);
