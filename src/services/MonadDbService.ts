@@ -730,6 +730,13 @@ export class MonadDbService {
   }
 
   /**
+   * Get all entries in a namespace (alias for getAllInNamespace)
+   */
+  public async getAll<T>(namespace: string): Promise<T[]> {
+    return this.getAllInNamespace<T>(namespace);
+  }
+
+  /**
    * Get the number of entries in the database
    */
   public getEntryCount(): number {

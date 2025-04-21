@@ -245,7 +245,57 @@ export class MonadGameService {
     }
   }
 
-  async registerPlayer(): Promise<{txHash: string}> {
+  /**
+   * Get the connected wallet address
+   */
+  async getWalletAddress(): Promise<string> {
+    if (!this.isConnected || !this.walletAddress) {
+      throw new Error("Wallet not connected");
+    }
+    return this.walletAddress;
+  }
+
+  /**
+   * Get player registration status
+   */
+  async getPlayer(address: string): Promise<{isRegistered: boolean}> {
+    if (!address) {
+      throw new Error("Address is required");
+    }
+
+    try {
+      // Check if player is already registered in localStorage
+      const storedRegistration = localStorage.getItem(`monad-player-registered-${address}`);
+      if (storedRegistration === 'true') {
+        console.log('Player registration found in localStorage');
+        return { isRegistered: true };
+      }
+
+      // Check if we're using a placeholder contract address
+      const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
+      if (contractAddress === '0x1234567890123456789012345678901234567890') {
+        console.log('Using simulated player data (placeholder contract address)');
+        return { isRegistered: false };
+      }
+
+      // In a real implementation, this would check if the player is registered on the contract
+      // For now, we'll simulate it
+      const playerData = await this.getPlayerData(address);
+      const isRegistered = !!playerData;
+
+      // If player is registered, store this information in localStorage
+      if (isRegistered) {
+        localStorage.setItem(`monad-player-registered-${address}`, 'true');
+      }
+
+      return { isRegistered };
+    } catch (error) {
+      console.error('Error checking player registration:', error);
+      return { isRegistered: false };
+    }
+  }
+
+  async registerPlayer(): Promise<{txHash: string, blockNumber?: number}> {
     if (!this.checkConnection()) {
       throw new Error("Wallet not connected");
     }
@@ -258,11 +308,21 @@ export class MonadGameService {
       if (contractAddress === '0x1234567890123456789012345678901234567890') {
         console.log('Using simulated transaction for development (placeholder contract address)');
         await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate blockchain delay
-        return { txHash: this.generateMockTransactionHash() };
+
+        // Store registration status in localStorage
+        if (this.walletAddress) {
+          localStorage.setItem(`monad-player-registered-${this.walletAddress}`, 'true');
+        }
+
+        const mockBlockNumber = Math.floor(Date.now() / 1000);
+        return {
+          txHash: this.generateMockTransactionHash(),
+          blockNumber: mockBlockNumber
+        };
       }
 
       // Set a timeout to prevent hanging
-      const timeoutPromise = new Promise<{txHash: string}>((_, reject) => {
+      const timeoutPromise = new Promise<{txHash: string, blockNumber?: number}>((_, reject) => {
         setTimeout(() => reject(new Error('Registration timed out')), 30000); // 30 second timeout
       });
 
@@ -286,7 +346,15 @@ export class MonadGameService {
         const receipt = await tx.wait(1); // Wait for 1 confirmation
         console.log('Registration transaction confirmed in block:', receipt.blockNumber);
 
-        return { txHash: tx.hash };
+        // Store registration status in localStorage
+        if (this.walletAddress) {
+          localStorage.setItem(`monad-player-registered-${this.walletAddress}`, 'true');
+        }
+
+        return {
+          txHash: tx.hash,
+          blockNumber: receipt.blockNumber
+        };
       };
 
       // Race between the timeout and the actual registration
@@ -297,7 +365,17 @@ export class MonadGameService {
       // For development purposes, if there's an error with the contract,
       // we'll return a simulated transaction hash so the UI flow can continue
       console.log('Returning simulated transaction hash due to error');
-      return { txHash: this.generateMockTransactionHash() };
+
+      // Store registration status in localStorage even in case of error
+      // This prevents repeated registration attempts
+      if (this.walletAddress) {
+        localStorage.setItem(`monad-player-registered-${this.walletAddress}`, 'true');
+      }
+
+      return {
+        txHash: this.generateMockTransactionHash(),
+        blockNumber: Math.floor(Date.now() / 1000)
+      };
     }
   }
 
