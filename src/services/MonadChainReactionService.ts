@@ -2,6 +2,8 @@ import { ethers } from 'ethers';
 import { Web3Provider } from '@ethersproject/providers';
 import { toast } from "sonner";
 import ChainReactionContractABI from '../contracts/ChainReactionContract.json';
+import { alchemyNFTService } from './AlchemyNFTService';
+import { monadGameService } from './MonadGameService';
 import { ChainEffect, ChainReactionResult } from './ChainReactionService';
 
 // Chain Reaction Contract address on Monad Testnet
@@ -40,7 +42,12 @@ class MonadChainReactionService {
     }
 
     try {
-      // Enable the provider and get accounts
+      // Use the same wallet connection method as MonadGameService
+      // This ensures consistent network configuration across services
+      await monadGameService.connectWallet();
+
+      // Now that MonadGameService has configured the network,
+      // we can initialize our own provider
       this.provider = new Web3Provider(window.ethereum, 'any');
       await this.provider.send("eth_requestAccounts", []);
 
@@ -49,9 +56,6 @@ class MonadChainReactionService {
       const walletAddress = await this.signer.getAddress();
 
       console.log('Connected wallet address for Chain Reactions:', walletAddress);
-
-      // Handle network switching/adding
-      await this.ensureCorrectNetwork();
 
       // Initialize contract
       await this.initializeContract();
@@ -259,7 +263,7 @@ class MonadChainReactionService {
       };
     } catch (error: any) {
       console.error('Error triggering chain reaction on Monad:', error);
-      
+
       toast.error('Chain reaction failed', {
         id: toastId,
         description: error.message || 'Error executing chain reaction on Monad'
@@ -286,7 +290,7 @@ class MonadChainReactionService {
       // Find the ChainReactionInitiated event
       const abi = ChainReactionContractABI.abi;
       const iface = new ethers.utils.Interface(abi);
-      
+
       for (const log of receipt.logs) {
         try {
           const parsedLog = iface.parseLog(log);
@@ -298,7 +302,7 @@ class MonadChainReactionService {
           continue;
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error parsing chain reaction ID:', error);
@@ -400,7 +404,7 @@ class MonadChainReactionService {
 
       const address = await this.signer.getAddress();
       const chainReactionIds = await this.chainReactionContract.getUserChainReactions(address);
-      
+
       return chainReactionIds;
     } catch (error) {
       console.error('Error getting user chain reactions:', error);

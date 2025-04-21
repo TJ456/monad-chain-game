@@ -3,6 +3,8 @@ import { Web3Provider } from '@ethersproject/providers';
 import { toast } from "sonner";
 import ChainReactionContractABI from '../contracts/ChainReactionContract.json';
 import { monadChainReactionService } from './MonadChainReactionService';
+import { monadGameService } from './MonadGameService';
+import { alchemyNFTService } from './AlchemyNFTService';
 
 // Chain Reaction Contract address on Monad Testnet - using the same address
 const CHAIN_REACTION_CONTRACT_ADDRESS = '0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf';
@@ -45,7 +47,7 @@ class MonadNFTService {
 
   /**
    * Initialize the connection to Monad blockchain
-   * Reuses the connection from MonadChainReactionService
+   * Reuses the connection from MonadGameService
    */
   async initialize(): Promise<boolean> {
     if (this.isConnected) {
@@ -58,7 +60,12 @@ class MonadNFTService {
     }
 
     try {
-      // Enable the provider and get accounts
+      // Use the same wallet connection method as MonadGameService
+      // This ensures consistent network configuration across services
+      await monadGameService.connectWallet();
+
+      // Now that MonadGameService has configured the network with Alchemy,
+      // we can initialize our own provider
       this.provider = new Web3Provider(window.ethereum, 'any');
       await this.provider.send("eth_requestAccounts", []);
 
