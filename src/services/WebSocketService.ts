@@ -68,12 +68,12 @@ class WebSocketService {
   // Connection state
   private socket: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10; // Increased from 5
+  private maxReconnectAttempts = 20; // Increased for better persistence
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
   private pingTimeout: NodeJS.Timeout | null = null;
   private lastPingTime = 0;
-  private pingIntervalTime = 15000; // 15 seconds
+  private pingIntervalTime = 10000; // 10 seconds
   private pingTimeoutTime = 5000; // 5 seconds
 
   // Session data
@@ -131,7 +131,20 @@ class WebSocketService {
     this.connectionStartTime = Date.now();
 
     // Build the WebSocket URL with session resumption if available
-    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8081/ws';
+    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8082';
+
+    // Convert http/https URLs to ws/wss
+    if (wsUrl.startsWith('http://')) {
+      wsUrl = wsUrl.replace('http://', 'ws://');
+    } else if (wsUrl.startsWith('https://')) {
+      wsUrl = wsUrl.replace('https://', 'wss://');
+    }
+
+    // Ensure path ends with /ws
+    if (!wsUrl.endsWith('/ws')) {
+      wsUrl = wsUrl.endsWith('/') ? `${wsUrl}ws` : `${wsUrl}/ws`;
+    }
+
     console.log(`Using WebSocket URL: ${wsUrl}`);
 
     // Add session ID for resumption if we have one
@@ -143,7 +156,18 @@ class WebSocketService {
       console.log(`Connecting to WebSocket server: ${wsUrl}`);
       this.socket = new WebSocket(wsUrl);
 
+      // Set a connection timeout
+      const connectionTimeout = setTimeout(() => {
+        if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
+          console.error('WebSocket connection timeout');
+          this.socket.close();
+          this.attemptReconnect();
+        }
+      }, 10000); // 10 second connection timeout
+
       this.socket.onopen = () => {
+        // Clear connection timeout
+        clearTimeout(connectionTimeout);
         console.log('WebSocket connection established');
         this.reconnectAttempts = 0;
         this.connectionStartTime = Date.now();
@@ -586,16 +610,20 @@ class WebSocketService {
     }
 
     // Calculate delay with exponential backoff and jitter
-    const baseDelay = 1000 * Math.pow(1.5, this.reconnectAttempts);
+    const baseDelay = 1000 * Math.pow(1.3, this.reconnectAttempts);
     const jitter = Math.random() * 1000; // Add up to 1 second of jitter
-    const delay = Math.min(baseDelay + jitter, 30000); // Cap at 30 seconds
+    const delay = Math.min(baseDelay + jitter, 15000); // Cap at 15 seconds - reduced for faster reconnection
 
     console.log(`Attempting to reconnect in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
 
-    // Show toast for first few reconnect attempts
-    if (this.reconnectAttempts < 3) {
+    // Show toast for reconnect attempts
+    if (this.reconnectAttempts === 0) {
       toast.warning('Connection lost', {
-        description: `Attempting to reconnect (${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})...`
+        description: `Attempting to reconnect...`
+      });
+    } else if (this.reconnectAttempts % 5 === 0) { // Show every 5 attempts
+      toast.warning('Still trying to reconnect', {
+        description: `Attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts}. Please check your connection.`
       });
     }
 
@@ -733,6 +761,8 @@ class WebSocketService {
    * Update connection quality and notify listeners
    */
   private updateConnectionQuality(quality: 'excellent' | 'good' | 'fair' | 'poor' | 'bad'): void {
+    // Only update if quality changed to avoid excessive notifications
+    const previousQuality = this.connectionQuality;
     this.connectionQuality = quality;
 
     // Calculate average latency
@@ -750,15 +780,18 @@ class WebSocketService {
       packetLoss: packetLossPercentage
     });
 
-    // Show toast for significant quality changes
-    if (quality === 'poor' || quality === 'bad') {
-      toast.warning('Connection quality degraded', {
-        description: `Network latency: ${avgLatency.toFixed(0)}ms, Packet loss: ${packetLossPercentage.toFixed(1)}%`
-      });
-    } else if (quality === 'excellent' && (this.latencyHistory.length > 5)) {
-      toast.success('Connection quality excellent', {
-        description: `Network latency: ${avgLatency.toFixed(0)}ms`
-      });
+    // Only show toast if quality changed significantly
+    if (quality !== previousQuality) {
+      if (quality === 'poor' || quality === 'bad') {
+        toast.warning('Connection quality degraded', {
+          description: `Network latency: ${avgLatency.toFixed(0)}ms, Packet loss: ${packetLossPercentage.toFixed(1)}%`
+        });
+      } else if ((previousQuality === 'poor' || previousQuality === 'bad') &&
+                (quality === 'good' || quality === 'excellent')) {
+        toast.success('Connection quality improved', {
+          description: `Network latency: ${avgLatency.toFixed(0)}ms`
+        });
+      }
     }
   }
 

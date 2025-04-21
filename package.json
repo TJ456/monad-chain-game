@@ -11,11 +11,12 @@
     "build": "node build.js",
     "build:vite": "vite build",
     "build:dev": "vite build --mode development",
+    "build:server": "tsc -p server/tsconfig.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "server:js": "node server/websocket-server.js",
     "server": "tsc -p server/tsconfig.json && node server/dist/websocket-server.js",
-    "start": "vite"
+    "start": "vite preview --host --port $PORT"
   },
   "dependencies": {
     "@ethersproject/providers": "^5.8.0",
