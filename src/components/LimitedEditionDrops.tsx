@@ -6,6 +6,7 @@ import { Sparkles, Clock, AlertTriangle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { MonadGameService } from '../services/MonadGameService';
 import { getTransactionExplorerUrl } from '../utils/explorer';
+import { getElementImage, getQualityImage } from '../utils/nftImages';
 
 interface LimitedEditionDrop {
   id: string;
@@ -31,12 +32,12 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
   const [drops, setDrops] = useState<LimitedEditionDrop[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
-  
+
   // Fetch available drops
   useEffect(() => {
     const fetchDrops = async () => {
       setIsLoading(true);
-      
+
       try {
         // In a real implementation, we would fetch this from a backend API
         // For this example, we'll use mock data
@@ -50,7 +51,7 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
             remainingSupply: 37,
             price: '0.05',
             endTime: Date.now() + 86400000 * 3, // 3 days from now
-            imageUrl: '/cards/legendary_special.png'
+            imageUrl: '/nft-images/legendary-comic.png'
           },
           {
             id: '2',
@@ -61,7 +62,7 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
             remainingSupply: 213,
             price: '0.02',
             endTime: Date.now() + 86400000 * 7, // 7 days from now
-            imageUrl: '/cards/epic_special.png'
+            imageUrl: '/nft-images/parallel-execution-comic.png'
           },
           {
             id: '3',
@@ -72,10 +73,10 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
             remainingSupply: 8,
             price: '0.1',
             endTime: Date.now() + 86400000 * 2, // 2 days from now
-            imageUrl: '/cards/legendary_founder.png'
+            imageUrl: '/nft-images/monad-boost-comic.png'
           }
         ];
-        
+
         setDrops(mockDrops);
       } catch (error) {
         console.error('Error fetching limited edition drops:', error);
@@ -84,22 +85,22 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
         setIsLoading(false);
       }
     };
-    
+
     fetchDrops();
   }, []);
-  
+
   const handleClaimDrop = async (drop: LimitedEditionDrop) => {
     if (!monadGameService.isConnected()) {
       toast.error('Please connect your wallet first');
       return;
     }
-    
+
     setIsClaiming(true);
-    
+
     try {
       const toastId = 'claim-drop-toast';
       toast.loading(`Claiming ${drop.name}...`, { id: toastId });
-      
+
       // Create card data for the limited edition drop
       const cardData = {
         name: drop.name,
@@ -110,15 +111,15 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
         mana: 2 + Math.floor(Math.random() * 3),
         description: drop.description
       };
-      
+
       // Mint the card
       const result = await monadGameService.mintCard(cardData);
-      
+
       toast.success(`Successfully claimed ${drop.name}!`, {
         id: toastId,
         description: `Transaction confirmed in block #${result.blockNumber}`
       });
-      
+
       // Add a button to view the transaction in the explorer
       const explorerUrl = getTransactionExplorerUrl(result.txHash);
       toast.success(
@@ -136,14 +137,14 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
           duration: 5000,
         }
       );
-      
+
       // Update the drop's remaining supply
-      setDrops(drops.map(d => 
-        d.id === drop.id 
+      setDrops(drops.map(d =>
+        d.id === drop.id
           ? { ...d, remainingSupply: Math.max(0, d.remainingSupply - 1) }
           : d
       ));
-      
+
       // Notify parent component
       onDropClaimed();
     } catch (error) {
@@ -155,7 +156,7 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
       setIsClaiming(false);
     }
   };
-  
+
   const getRarityLabel = (rarity: number) => {
     switch (rarity) {
       case 3: return { label: 'Legendary', color: 'bg-amber-500 text-black' };
@@ -164,22 +165,22 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
       default: return { label: 'Common', color: 'bg-gray-500 text-white' };
     }
   };
-  
+
   const formatTimeRemaining = (endTime: number) => {
     const now = Date.now();
     const timeRemaining = endTime - now;
-    
+
     if (timeRemaining <= 0) return 'Ended';
-    
+
     const days = Math.floor(timeRemaining / (1000 * 60 * 60 * 24));
     const hours = Math.floor((timeRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (days > 0) return `${days}d ${hours}h remaining`;
     if (hours > 0) return `${hours}h ${minutes}m remaining`;
     return `${minutes}m remaining`;
   };
-  
+
   if (isLoading) {
     return (
       <UICard className="glassmorphism border-purple-500/30">
@@ -191,7 +192,7 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
       </UICard>
     );
   }
-  
+
   if (drops.length === 0) {
     return (
       <UICard className="glassmorphism border-purple-500/30">
@@ -203,7 +204,7 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
       </UICard>
     );
   }
-  
+
   return (
     <UICard className="glassmorphism border-purple-500/30">
       <div className="p-6">
@@ -214,40 +215,47 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
           </div>
           <Sparkles className="w-6 h-6 text-purple-400" />
         </div>
-        
+
         <div className="space-y-4">
           {drops.map(drop => {
             const rarity = getRarityLabel(drop.rarity);
             const isLowSupply = drop.remainingSupply <= drop.totalSupply * 0.1;
-            
+
             return (
               <div key={drop.id} className="bg-black/30 rounded-md p-4 border border-purple-500/20">
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="w-full md:w-1/4">
                     <div className="aspect-square rounded-md overflow-hidden border border-purple-500/30">
-                      <img 
-                        src={drop.imageUrl || '/cards/placeholder.png'} 
-                        alt={drop.name}
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black">
+                        <div className="text-6xl">
+                          {drop.id === '1' && '🎮'}
+                          {drop.id === '2' && '⚡'}
+                          {drop.id === '3' && '👑'}
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/60 pointer-events-none"></div>
+                        {/* Add a small badge overlay */}
+                        <div className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-full text-xs text-white font-bold shadow-lg">
+                          NFT
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  
+
                   <div className="w-full md:w-3/4 space-y-3">
                     <div className="flex justify-between items-start">
                       <div>
                         <h3 className="text-lg font-semibold text-white">{drop.name}</h3>
                         <Badge className={`${rarity.color} mt-1`}>{rarity.label}</Badge>
                       </div>
-                      
+
                       <div className="flex items-center">
                         <Clock className="w-4 h-4 text-amber-400 mr-1" />
                         <span className="text-xs text-amber-400">{formatTimeRemaining(drop.endTime)}</span>
                       </div>
                     </div>
-                    
+
                     <p className="text-sm text-gray-300">{drop.description}</p>
-                    
+
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-xs text-gray-400">Supply</p>
@@ -255,13 +263,13 @@ const LimitedEditionDrops: React.FC<LimitedEditionDropsProps> = ({
                           {drop.remainingSupply} / {drop.totalSupply} remaining
                         </p>
                       </div>
-                      
+
                       <div>
                         <p className="text-xs text-gray-400 text-right">Price</p>
-                        <p className="text-sm font-medium text-white">{drop.price} ETH</p>
+                        <p className="text-sm font-medium text-white">{drop.price} MONAD</p>
                       </div>
                     </div>
-                    
+
                     <Button
                       onClick={() => handleClaimDrop(drop)}
                       disabled={isClaiming || drop.remainingSupply === 0}

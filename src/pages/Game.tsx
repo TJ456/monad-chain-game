@@ -15,6 +15,10 @@ import GameTransactionOverlay from '@/components/GameTransactionOverlay';
 import PlayerInventory from '@/components/PlayerInventory';
 import BlockchainTransactionInfo, { Transaction } from '@/components/BlockchainTransactionInfo';
 import TransactionLoader from '@/components/TransactionLoader';
+import ManaMeter from '@/components/ui/mana-meter';
+import ManaCost from '@/components/ui/mana-cost';
+import ManaEffect from '@/components/ui/mana-effect';
+import ManaGuide from '@/components/ManaGuide';
 import WebSocketService, { WebSocketMessageType } from '@/services/WebSocketService';
 import GameSyncService, { GameState, ConflictResolutionStrategy } from '@/services/GameSyncService';
 import { Button } from '@/components/ui/button';
@@ -55,6 +59,10 @@ const Game = () => {
   } | null>(null);
   const [playerMana, setPlayerMana] = useState(10);
   const [opponentMana, setOpponentMana] = useState(10);
+  const [showManaEffect, setShowManaEffect] = useState(false);
+  const [manaEffectAmount, setManaEffectAmount] = useState(0);
+  const [manaEffectPosition, setManaEffectPosition] = useState({ x: 0, y: 0 });
+  const [showManaGuide, setShowManaGuide] = useState(false);
   const [playerHealth, setPlayerHealth] = useState(20);
   const [opponentHealth, setOpponentHealth] = useState(20);
   const [battleLog, setBattleLog] = useState<string[]>([]);
@@ -420,9 +428,9 @@ const Game = () => {
   const handleBoostActivation = async (amount: number, boostEffect: number, duration: number) => {
     // Show transaction pending state
     setIsTransactionPending(true);
-    
+
     // Generate a proper format mock transaction hash (32 bytes = 64 chars + 0x prefix)
-    const txHash = '0x' + Array.from({length: 64}, () => 
+    const txHash = '0x' + Array.from({length: 64}, () =>
       Math.floor(Math.random() * 16).toString(16)).join('');
 
     setCurrentTransaction({
@@ -719,7 +727,28 @@ const Game = () => {
 
     if (playerMana < card.mana) {
       toast.warning(`Not enough mana (Need ${card.mana}, have ${playerMana})`);
+
+      // Highlight the mana meter to show it's insufficient
+      const manaMeter = document.getElementById('player-mana-meter');
+      if (manaMeter) {
+        manaMeter.classList.add('animate-shake');
+        setTimeout(() => {
+          manaMeter.classList.remove('animate-shake');
+        }, 500);
+      }
       return;
+    }
+
+    // Show mana effect animation
+    const cardElement = document.getElementById(`card-${card.id}`);
+    if (cardElement) {
+      const rect = cardElement.getBoundingClientRect();
+      setManaEffectPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 3
+      });
+      setManaEffectAmount(card.mana);
+      setShowManaEffect(true);
     }
 
     try {
@@ -1649,31 +1678,34 @@ const Game = () => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                          <div className="text-blue-400 text-sm mb-1 flex items-center">
-                            <Zap className="w-4 h-4 mr-1" />
-                            Your Mana
+                        <div id="player-mana-meter" className="relative">
+                          <div className="absolute -top-1 -right-1">
+                            <button
+                              onClick={() => setShowManaGuide(true)}
+                              className="w-5 h-5 rounded-full bg-blue-500/30 text-blue-400 hover:bg-blue-500/50 flex items-center justify-center text-xs transition-colors"
+                            >
+                              ?
+                            </button>
                           </div>
-                          <div className="h-3 bg-black/50 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500 ease-in-out"
-                              style={{ width: `${(playerMana / 10) * 100}%` }}
-                            ></div>
-                          </div>
-                          <div className="text-xs text-white mt-1">{playerMana}/10</div>
+                          <ManaMeter
+                            currentMana={playerMana}
+                            maxMana={10}
+                            showAnimation={currentTurn === 'player'}
+                            size="md"
+                            variant="tech"
+                            playerType="player"
+                          />
                         </div>
                         <div>
-                          <div className="text-purple-400 text-sm mb-1 text-right flex items-center justify-end">
-                            Opponent Mana
-                            <Zap className="w-4 h-4 ml-1" />
-                          </div>
-                          <div className="h-3 bg-black/50 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-500 rounded-full transition-all duration-500 ease-in-out"
-                              style={{ width: `${(opponentMana / 10) * 100}%` }}
-                            ></div>
-                          </div>
-                          <div className="text-xs text-white mt-1 text-right">{opponentMana}/10</div>
+                          <ManaMeter
+                            currentMana={opponentMana}
+                            maxMana={10}
+                            showAnimation={currentTurn === 'opponent'}
+                            size="md"
+                            variant="tech"
+                            playerType="opponent"
+                            className="opacity-90"
+                          />
                         </div>
                       </div>
 
@@ -1834,5 +1866,61 @@ const Game = () => {
                   <div className="text-xs text-gray-400 mt-1">Use these to redeem new cards!</div>
                 </div>
                 <div className="bg-black/30 rounded p-3">
-                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">                    {battleLog.map((log, index) => (                      <p key={index} className="mb-1">{log}</p>                    ))}                  </div>                </div>              </div>              <div className="flex space-x-4 w-full max-w-md">                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">                  <Zap className="w-4 h-4 mr-2" />                  New Battle                </Button>                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">                  <Package className="w-4 h-4 mr-2" />                  View Inventory                </Button>              </div>            </div>          </UICard>        );      default:        return null;    }  };  return (    <div>      {renderGameContent()}      {gameStatus === 'playing' && (        <OnChainMoves          moves={pendingMoves}          isVisible={showOnChainMoves}          onToggle={() => setShowOnChainMoves(!showOnChainMoves)}        />      )}    </div>  );}
-                  ;export default Game;
+                  <div className="text-sm text-gray-400 mb-1">Battle Log</div>
+                  <div className="max-h-32 overflow-y-auto text-xs text-gray-300">
+                    {battleLog.map((log, index) => (
+                      <p key={index} className="mb-1">{log}</p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex space-x-4 w-full max-w-md">
+                <Button onClick={backToRoomSelection} className="w-full bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 transform transition-all hover:scale-105">
+                  <Zap className="w-4 h-4 mr-2" />
+                  New Battle
+                </Button>
+                <Button onClick={openInventory} className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 transform transition-all hover:scale-105">
+                  <Package className="w-4 h-4 mr-2" />
+                  View Inventory
+                </Button>
+              </div>
+            </div>
+          </UICard>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      {renderGameContent()}
+      {gameStatus === 'playing' && (
+        <OnChainMoves
+          moves={pendingMoves}
+          isVisible={showOnChainMoves}
+          onToggle={() => setShowOnChainMoves(!showOnChainMoves)}
+        />
+      )}
+
+      {/* Mana effect animation */}
+      {showManaEffect && (
+        <ManaEffect
+          show={showManaEffect}
+          amount={manaEffectAmount}
+          position={manaEffectPosition}
+          onComplete={() => setShowManaEffect(false)}
+        />
+      )}
+
+      {/* Mana guide modal */}
+      {showManaGuide && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <ManaGuide onClose={() => setShowManaGuide(false)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Game;
