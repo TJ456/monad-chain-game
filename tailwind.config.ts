@@ -127,6 +127,10 @@ export default {
 				'mana-fill': {
 					'0%': { width: '0%' },
 					'100%': { width: '100%' }
+				},
+				'fadeIn': {
+					'0%': { opacity: '0', transform: 'translateY(10px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
 				}
 			},
 			animation: {
@@ -139,7 +143,8 @@ export default {
 				'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
 				'shake': 'shake 0.5s ease-in-out',
 				'mana-drain': 'mana-drain 0.8s ease-out forwards',
-				'mana-fill': 'mana-fill 1s ease-out forwards'
+				'mana-fill': 'mana-fill 1s ease-out forwards',
+				'fadeIn': 'fadeIn 0.5s ease-out forwards'
 			}
 		}
 	},

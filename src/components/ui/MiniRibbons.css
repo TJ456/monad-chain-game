@@ -1,0 +1,25 @@
+.mini-ribbons-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mini-ribbons-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Ensure content above ribbons is clickable */
+.mini-ribbons-content {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
