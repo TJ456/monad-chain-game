@@ -2,6 +2,7 @@ import { ethers, ContractInterface } from 'ethers';
 import { Web3Provider } from '@ethersproject/providers';
 import { MonadGameMove, MovesBatch, Player } from '../types/game';
 import { ipfsService, CardMetadata } from './IPFSService';
+import { alchemyNFTService } from './AlchemyNFTService';
 
 export class MonadGameService {
   private provider: Web3Provider | null = null;
@@ -52,7 +53,17 @@ export class MonadGameService {
     }
 
     try {
-      // Enable the provider and get accounts
+      // First, try to use the Alchemy provider for Monad testnet
+      console.log('Connecting to Monad testnet using Alchemy provider...');
+
+      // Get the Monad RPC URL from the Alchemy service
+      const monadRpcUrl = alchemyNFTService.getMonadRpcUrl();
+      console.log('Using Monad RPC URL:', monadRpcUrl);
+
+      // Configure MetaMask to use the Alchemy provider
+      await this.configureMetaMaskWithAlchemy(monadRpcUrl);
+
+      // Now connect using MetaMask
       this.provider = new Web3Provider(window.ethereum, 'any');
       await this.provider.send("eth_requestAccounts", []);
 
@@ -73,6 +84,61 @@ export class MonadGameService {
     } catch (error) {
       console.error('Error connecting wallet:', error);
       this.resetState();
+      throw error;
+    }
+  }
+
+  /**
+   * Configure MetaMask to use the Alchemy provider for Monad testnet
+   * @param monadRpcUrl The Monad RPC URL from Alchemy
+   */
+  private async configureMetaMaskWithAlchemy(monadRpcUrl: string): Promise<void> {
+    if (!window.ethereum) {
+      throw new Error("MetaMask not installed");
+    }
+
+    try {
+      // Create a modified network config that uses the Alchemy RPC URL
+      const networkConfig = {
+        ...this.MONAD_TESTNET_CONFIG,
+        rpcUrls: [monadRpcUrl]
+      };
+
+      console.log('Configuring MetaMask with Alchemy RPC URL:', networkConfig);
+
+      // Try to switch to the network first
+      const requiredChainIdHex = networkConfig.chainId.startsWith('0x') ?
+        networkConfig.chainId :
+        `0x${parseInt(networkConfig.chainId).toString(16)}`;
+
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: requiredChainIdHex }],
+        });
+        console.log('Successfully switched to Monad testnet');
+      } catch (switchError: any) {
+        // If the network doesn't exist, add it
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [{
+                ...networkConfig,
+                chainId: requiredChainIdHex
+              }],
+            });
+            console.log('Successfully added Monad testnet with Alchemy RPC URL');
+          } catch (addError: any) {
+            console.error('Failed to add Monad testnet with Alchemy RPC URL:', addError);
+            throw addError;
+          }
+        } else {
+          throw switchError;
+        }
+      }
+    } catch (error) {
+      console.error('Error configuring MetaMask with Alchemy:', error);
       throw error;
     }
   }

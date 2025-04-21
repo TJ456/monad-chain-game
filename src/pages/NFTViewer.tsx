@@ -1,11 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Address, AddressInput } from "@/components/AddressInput";
 import { toast } from "sonner";
-import { ArrowLeft, Search, ExternalLink } from "lucide-react";
+import { ArrowLeft, Search, ExternalLink, Wallet, AlertTriangle } from "lucide-react";
 import GameCard from "@/components/GameCard";
+import { monadGameService } from "@/services/MonadGameService";
+import NFTFallback from "@/components/NFTFallback";
+import { alchemyNFTService } from "@/services/AlchemyNFTService";
+import { ethers } from 'ethers';
 
 const NFTViewer: React.FC = () => {
   const navigate = useNavigate();
@@ -13,10 +17,63 @@ const NFTViewer: React.FC = () => {
   const [nfts, setNfts] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [isWalletConnected, setIsWalletConnected] = useState<boolean>(false);
+  const [connectedAddress, setConnectedAddress] = useState<string>("");
 
-  const fetchNFTs = async () => {
-    if (!ownerAddress) {
-      toast.error("Please enter an address");
+  // Test address with NFTs for demo purposes
+  const TEST_ADDRESS = "0x19818f44faf5a217f619aff0fd487cb2a55cca65";
+
+  // Check if wallet is connected when component mounts
+  useEffect(() => {
+    const checkWalletConnection = async () => {
+      try {
+        // Check if wallet is connected
+        const isConnected = await monadGameService.checkConnection();
+        setIsWalletConnected(isConnected);
+
+        if (isConnected) {
+          const address = await monadGameService.getWalletAddress();
+          setConnectedAddress(address);
+          console.log('Connected wallet address:', address);
+        }
+      } catch (error) {
+        console.error('Error checking wallet connection:', error);
+      }
+    };
+
+    checkWalletConnection();
+  }, []);
+
+  // Use the connected wallet address
+  const useConnectedWallet = () => {
+    if (connectedAddress) {
+      setOwnerAddress(connectedAddress);
+      fetchNFTs(connectedAddress);
+    } else {
+      toast.error("No wallet connected");
+    }
+  };
+
+  // Connect wallet
+  const connectWallet = async () => {
+    try {
+      const address = await monadGameService.connectWallet();
+      setIsWalletConnected(true);
+      setConnectedAddress(address);
+      setOwnerAddress(address);
+      toast.success("Wallet connected successfully");
+      fetchNFTs(address);
+    } catch (error) {
+      console.error('Error connecting wallet:', error);
+      toast.error("Failed to connect wallet");
+    }
+  };
+
+  const fetchNFTs = async (addressToFetch?: string) => {
+    const addressToUse = addressToFetch || ownerAddress;
+
+    if (!addressToUse) {
+      toast.error("Please enter an address or connect your wallet");
       return;
     }
 
@@ -24,37 +81,22 @@ const NFTViewer: React.FC = () => {
     setError("");
 
     try {
-      const alchemyApiKey = import.meta.env.VITE_ALCHEMY_API_KEY;
-
-      if (!alchemyApiKey) {
-        toast.error("Alchemy API key not configured");
-        setError("API key not configured. Please add VITE_ALCHEMY_API_KEY to your environment variables.");
-        setLoading(false);
-        return;
-      }
-
       // Get network name from environment variables
-      const networkName = import.meta.env.VITE_NETWORK_NAME || "Monad Mainnet";
-      const networkId = import.meta.env.VITE_NETWORK_ID || "1";
+      const networkName = import.meta.env.VITE_NETWORK_NAME || "Monad Testnet";
 
-      // Determine the correct API endpoint based on network
-      let apiEndpoint = "https://monad-testnet.g.alchemy.com";
+      // For testing purposes, we'll use a known address with NFTs if the user hasn't connected their wallet
+      const addressForFetch = addressToUse || TEST_ADDRESS;
+      console.log(`Fetching NFTs for address: ${addressForFetch}`);
 
-      // If we're on mainnet, use the mainnet endpoint
-      if (networkName.toLowerCase().includes("mainnet") || networkId === "1") {
-        apiEndpoint = "https://monad-mainnet.g.alchemy.com";
-      }
+      // Initialize the Alchemy NFT service if needed
+      await alchemyNFTService.initialize();
 
-      console.log(`Using Alchemy API endpoint: ${apiEndpoint} for network: ${networkName}`);
+      // Get the latest block number to verify connection
+      const blockNumber = await alchemyNFTService.getLatestBlockNumber();
+      console.log(`Connected to Monad. Latest block: ${blockNumber}`);
 
-      const options = { method: "GET", headers: { accept: "application/json" } };
-      const response = await fetch(
-        `${apiEndpoint}/nft/v3/${alchemyApiKey}/getNFTsForOwner?owner=${ownerAddress}&withMetadata=true&pageSize=100`,
-        options,
-      );
-
-      const data = await response.json();
-
+      // Fetch NFTs using our service
+      const data = await alchemyNFTService.getNFTsForOwner(addressForFetch);
       console.log("NFT data:", data);
 
       if (data.ownedNfts) {
@@ -66,13 +108,15 @@ const NFTViewer: React.FC = () => {
         }
       } else {
         setNfts([]);
-        setError("No NFTs found or error in response");
+        setError("No NFTs found or error in response: " + JSON.stringify(data));
         toast.error("Error fetching NFTs");
       }
     } catch (err) {
-      console.error(err);
-      setError("Error fetching NFTs. Please try again.");
-      toast.error("Error fetching NFTs");
+      console.error('Error details:', err);
+      // Show more detailed error message
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setError(`Error fetching NFTs: ${errorMessage}`);
+      toast.error("Error fetching NFTs. Check console for details.");
     } finally {
       setLoading(false);
     }
@@ -96,6 +140,26 @@ const NFTViewer: React.FC = () => {
         </Button>
       </div>
 
+      <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
+        <h3 className="text-lg font-medium text-white mb-2">How to Use This Feature</h3>
+        <ul className="list-disc list-inside text-gray-300 space-y-1">
+          <li>Connect your wallet using the button below to view your NFTs</li>
+          <li>Or enter any Monad wallet address to view NFTs owned by that address</li>
+          <li>This feature now uses Ethers.js with JsonRpcProvider to connect directly to Monad testnet</li>
+          <li>If the Alchemy API fails, a fallback solution will generate mock NFTs for testing</li>
+          <li>For testing, you can use this <Button
+              variant="link"
+              className="p-0 h-auto text-blue-400 hover:text-blue-300 font-normal"
+              onClick={() => {
+                setOwnerAddress(TEST_ADDRESS);
+                fetchNFTs(TEST_ADDRESS);
+              }}
+            >
+              test address
+            </Button> with known NFTs</li>
+        </ul>
+      </div>
+
       <Card className="glassmorphism border-purple-500/30 mb-8">
         <CardHeader>
           <CardTitle className="text-white">Search NFTs by Address</CardTitle>
@@ -104,31 +168,61 @@ const NFTViewer: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-grow">
-              <AddressInput
-                value={ownerAddress}
-                onChange={setOwnerAddress}
-                placeholder="Enter Monad wallet address (0x...)"
-              />
+          <div className="flex flex-col space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-grow">
+                <AddressInput
+                  value={ownerAddress}
+                  onChange={setOwnerAddress}
+                  placeholder="Enter Monad wallet address (0x...)"
+                />
+              </div>
+              <Button
+                className="bg-gradient-to-r from-purple-600 to-indigo-600"
+                onClick={() => fetchNFTs()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Fetch NFTs
+                  </>
+                )}
+              </Button>
             </div>
-            <Button
-              className="bg-gradient-to-r from-purple-600 to-indigo-600"
-              onClick={fetchNFTs}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                  Loading...
-                </>
+
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              {isWalletConnected ? (
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto border-purple-500/30 text-purple-400"
+                  onClick={useConnectedWallet}
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Use My Wallet (<Address address={connectedAddress} size="xs" />)
+                </Button>
               ) : (
-                <>
-                  <Search className="h-4 w-4 mr-2" />
-                  Fetch NFTs
-                </>
+                <Button
+                  variant="outline"
+                  className="w-full md:w-auto border-purple-500/30 text-purple-400"
+                  onClick={connectWallet}
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Connect Wallet
+                </Button>
               )}
-            </Button>
+
+              {connectedAddress && (
+                <p className="text-xs text-gray-500 mt-2 md:mt-0">
+                  Your wallet: <Address address={connectedAddress} size="xs" />
+                </p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -141,7 +235,7 @@ const NFTViewer: React.FC = () => {
 
       {nfts.length > 0 && (
         <div className="mb-4">
-          <h2 className="text-xl font-bold text-white mb-2">NFTs for <Address address={ownerAddress} /></h2>
+          <h2 className="text-xl font-bold text-white mb-2">NFTs for <Address address={ownerAddress || connectedAddress} /></h2>
           <p className="text-gray-400 mb-4">Found {nfts.length} NFTs on {import.meta.env.VITE_NETWORK_NAME || "Monad Mainnet"}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -202,9 +296,25 @@ const NFTViewer: React.FC = () => {
         </div>
       )}
 
-      {nfts.length === 0 && !loading && !error && ownerAddress && (
+      {nfts.length === 0 && !loading && !error && (ownerAddress || connectedAddress) && (
         <div className="bg-blue-900/20 border border-blue-500/30 text-blue-400 p-4 rounded-md">
           <p>No NFTs found for this address on {import.meta.env.VITE_NETWORK_NAME || "Monad Mainnet"}.</p>
+        </div>
+      )}
+
+      {!isWalletConnected && !ownerAddress && !loading && !error && (
+        <div className="bg-purple-900/20 border border-purple-500/30 text-purple-400 p-4 rounded-md">
+          <p>Connect your wallet or enter a Monad address to view NFTs.</p>
+        </div>
+      )}
+
+      {error && (ownerAddress || connectedAddress) && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="text-yellow-500" />
+            <h2 className="text-xl font-bold text-white">Alternative Solution</h2>
+          </div>
+          <NFTFallback address={ownerAddress || connectedAddress} autoGenerate={true} />
         </div>
       )}
     </div>
