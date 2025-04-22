@@ -6,6 +6,8 @@ import { StateSyncPriority } from '@/types/sync';
 import { toast } from 'sonner';
 import { MerkleTree } from '@/utils/merkleTree';
 import { compressGameState } from '@/utils/compression';
+import { consensusIntegration } from './ConsensusIntegration';
+import { ConsensusBlock } from './consensus';
 
 /**
  * MonadDbIntegration - Integrates the GameStateManager with MonadDb
@@ -27,6 +29,8 @@ export class MonadDbIntegration {
   private readonly MERKLE_NAMESPACE = 'monad:merkle';
   private readonly BLOCKCHAIN_NAMESPACE = 'monad:blockchain';
   private readonly STATESYNC_NAMESPACE = 'monad:statesync';
+  private readonly CONSENSUS_BLOCKS_NAMESPACE = 'monad:consensus:blocks';
+  private consensusEnabled: boolean = false;
 
   // Performance metrics
   private syncCount: number = 0;
@@ -63,6 +67,14 @@ export class MonadDbIntegration {
       this.stateSyncService.initialize();
     }
 
+    // Initialize consensus with dummy validators for now
+    // In a real implementation, validators would be fetched from the network
+    await consensusIntegration.initialize(
+      ['validator1', 'validator2', 'validator3', 'validator4'],
+      'validator1' // This node's ID
+    );
+    this.consensusEnabled = true;
+
     // Start periodic sync
     this.syncInterval = setInterval(() => this.syncWithMonadDb(), 10000);
 
@@ -94,8 +106,28 @@ export class MonadDbIntegration {
         return;
       }
 
+      // Get latest consensus block
+      const latestBlock = await consensusIntegration.getLatestBlock();
+      
+      // Create state entry
+      const stateEntry = {
+        ...currentState,
+        _blockNumber: latestBlock?.number || 0,
+        _blockHash: latestBlock?.merkleRoot || '0'.repeat(64),
+        _timestamp: Date.now()
+      };
+
+      // Submit state update as transaction if consensus is enabled
+      if (this.consensusEnabled) {
+        const transactions = [JSON.stringify(stateEntry)];
+        const block = await consensusIntegration.submitTransactions(transactions);
+        if (block) {
+          console.log(`State update included in block ${block.number}`);
+        }
+      }
+
       // Compress and store current state in MonadDb
-      const { compressedData, originalSize, compressedSize } = compressGameState(currentState);
+      const { compressedData, originalSize, compressedSize } = compressGameState(stateEntry);
 
       // Create a merkle tree for the state
       const stateEntries = Object.entries(currentState)
@@ -109,12 +141,13 @@ export class MonadDbIntegration {
       await this.monadDb.put('currentStateRoot', {
         root: merkleRoot,
         timestamp: Date.now(),
-        stateHash: merkleRoot.substring(0, 10)
+        stateHash: merkleRoot.substring(0, 10),
+        blockNumber: latestBlock?.number || 0
       }, this.MERKLE_NAMESPACE);
 
       // Store the compressed state with merkle root
       await this.monadDb.put('current', {
-        ...currentState,
+        ...stateEntry,
         _compressed: true,
         _compressedData: compressedData,
         _originalSize: originalSize,
@@ -141,12 +174,74 @@ export class MonadDbIntegration {
       await this.recordSyncTransaction(merkleRoot, {
         syncTime: duration,
         compressionRatio: originalSize / compressedSize,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        blockNumber: latestBlock?.number || 0
       });
     } catch (error) {
       console.error('Error syncing with MonadDb:', error);
       toast.error('Sync Error', {
         description: 'Failed to sync with MonadDb. Retrying...'
+      });
+    }
+  }
+
+  /**
+   * Sync with blockchain
+   */
+  public async syncWithBlockchain(): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('MonadDbIntegration not initialized');
+    }
+
+    try {
+      // Notify user of sync start
+      toast.info('Syncing with Monad blockchain...', {
+        description: 'Retrieving latest state from blockchain'
+      });
+
+      // Verify chain integrity first
+      const isChainValid = await consensusIntegration.verifyChainIntegrity();
+      if (!isChainValid) {
+        throw new Error('Blockchain integrity check failed');
+      }
+
+      // Get current state
+      const currentState = this.gameStateManager.getCurrentState();
+      if (!currentState) {
+        return;
+      }
+
+      // Get latest consensus block
+      const latestBlock = await consensusIntegration.getLatestBlock();
+      if (!latestBlock) {
+        console.warn('No consensus blocks available');
+        return;
+      }
+
+      // Request sync to latest block
+      const syncId = await this.stateSyncService.requestSync({
+        targetBlock: latestBlock.number,
+        includeAccounts: true,
+        includeStorage: true,
+        priority: StateSyncPriority.HIGH
+      });
+
+      // Record the sync request in MonadDb
+      await this.monadDb.put(`sync-${syncId}`, {
+        syncId,
+        targetBlock: latestBlock.number,
+        blockHash: latestBlock.merkleRoot,
+        timestamp: Date.now(),
+        gameState: currentState.roomCode || 'unknown'
+      }, this.STATESYNC_NAMESPACE);
+
+      toast.success('Synced with Monad blockchain', {
+        description: `Synced to block ${latestBlock.number}`
+      });
+    } catch (error) {
+      console.error('Error syncing with blockchain:', error);
+      toast.error('Blockchain Sync Error', {
+        description: 'Failed to sync with Monad blockchain'
       });
     }
   }
@@ -368,76 +463,6 @@ export class MonadDbIntegration {
     // Sync from MonadDb to GameStateManager is more complex since we can't directly add checkpoints
     // For now, we'll just ensure the MonadDb has all the checkpoints from the GameStateManager
     // In a real implementation, we would need to handle this differently
-  }
-
-  /**
-   * Sync with blockchain
-   */
-  public async syncWithBlockchain(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error('MonadDbIntegration not initialized');
-    }
-
-    try {
-      // Notify user of sync start
-      toast.info('Syncing with Monad blockchain...', {
-        description: 'Retrieving latest state from blockchain'
-      });
-
-      // Get current state
-      const currentState = this.gameStateManager.getCurrentState();
-      if (!currentState) {
-        return;
-      }
-
-      // Create a merkle tree for the state
-      const stateEntries = Object.entries(currentState)
-        .filter(([key]) => !key.startsWith('_'))
-        .map(([key, value]) => `${key}:${JSON.stringify(value)}`);
-
-      const merkleTree = new MerkleTree(stateEntries);
-      const merkleRoot = merkleTree.getRoot();
-
-      // Use StateSyncService to sync with blockchain
-      // Get the latest block number (simulated in this implementation)
-      const latestBlock = Math.floor(Date.now() / 10000); // Simulated block number
-
-      // Request sync to the latest block
-      const syncId = await this.stateSyncService.requestSync({
-        targetBlock: latestBlock,
-        includeAccounts: true,
-        includeStorage: true,
-        priority: StateSyncPriority.HIGH
-      });
-
-      // Record the sync request in MonadDb
-      await this.monadDb.put(`sync-${syncId}`, {
-        syncId,
-        targetBlock: latestBlock,
-        merkleRoot,
-        timestamp: Date.now(),
-        gameState: currentState.roomCode || 'unknown'
-      }, this.STATESYNC_NAMESPACE);
-
-      // Record a blockchain transaction
-      const txHash = `0x${merkleRoot.substring(0, 16)}`;
-      await this.recordBlockchainTransaction(txHash, {
-        merkleRoot,
-        timestamp: Date.now(),
-        gameState: currentState.roomCode || 'unknown',
-        blockNumber: latestBlock,
-        syncId
-      });
-
-      toast.success('Synced with Monad blockchain', {
-        description: `Transaction hash: ${txHash.substring(0, 10)}... (Block ${latestBlock})`
-      });
-    } catch (error) {
-      console.error('Error syncing with blockchain:', error);
-      toast.error('Blockchain Sync Error', {
-        description: 'Failed to sync with Monad blockchain'
-      });
-    }
   }
 
   /**

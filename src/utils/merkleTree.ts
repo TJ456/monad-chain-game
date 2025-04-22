@@ -185,6 +185,26 @@ export function createGameStateMerkleTree(gameState: any): MerkleTree {
 }
 
 /**
+ * Create a Merkle tree from consensus block data
+ * @param block The consensus block object
+ * @returns A MerkleTree instance
+ */
+export function createConsensusBlockMerkleTree(block: any): MerkleTree {
+  // Convert block properties to strings for hashing
+  const blockEntries = Object.entries(block)
+    .filter(([key]) => !key.startsWith('_') && key !== 'merkleRoot' && key !== 'signature')
+    .map(([key, value]) => {
+      // Special handling for transactions array
+      if (key === 'transactions' && Array.isArray(value)) {
+        return `${key}:${new MerkleTree(value).getRoot()}`;
+      }
+      return `${key}:${JSON.stringify(value)}`;
+    });
+
+  return new MerkleTree(blockEntries);
+}
+
+/**
  * Verify the integrity of a game state using its Merkle root
  * @param gameState The game state to verify
  * @param expectedRoot The expected Merkle root
@@ -233,4 +253,46 @@ export function verifyPropertyWithProof(
 ): boolean {
   const propertyString = `${property}:${JSON.stringify(value)}`;
   return MerkleTree.verify(propertyString, proof, root);
+}
+
+/**
+ * Verify a consensus block using its Merkle root
+ * @param block The consensus block to verify
+ * @param expectedRoot The expected Merkle root
+ * @returns True if the block is valid
+ */
+export function verifyConsensusBlock(block: any, expectedRoot: string): boolean {
+  const tree = createConsensusBlockMerkleTree(block);
+  return tree.getRoot() === expectedRoot;
+}
+
+/**
+ * Create a Merkle proof for a transaction in a block
+ * @param block The consensus block
+ * @param txIndex The index of the transaction
+ * @returns The Merkle proof or null if transaction doesn't exist
+ */
+export function createTransactionProof(block: any, txIndex: number): string[] | null {
+  if (!block.transactions || txIndex >= block.transactions.length) {
+    return null;
+  }
+
+  // Create a Merkle tree of just the transactions
+  const txTree = new MerkleTree(block.transactions);
+  return txTree.getProof(txIndex);
+}
+
+/**
+ * Verify a transaction using a Merkle proof
+ * @param transaction The transaction data
+ * @param proof The Merkle proof
+ * @param txRoot The transactions Merkle root
+ * @returns True if the transaction is valid
+ */
+export function verifyTransaction(
+  transaction: string,
+  proof: string[],
+  txRoot: string
+): boolean {
+  return MerkleTree.verify(transaction, proof, txRoot);
 }
