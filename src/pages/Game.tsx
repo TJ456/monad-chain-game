@@ -1432,17 +1432,139 @@ const Game = () => {
     </TooltipProvider>
   );
 
+  // Wallet connection state
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
   const renderGameContent = () => {
+
+    const handleConnectWallet = async () => {
+        setIsConnecting(true);
+        setConnectionError(null);
+
+        try {
+            // Show connecting toast
+            toast.loading("Connecting to MetaMask...", { id: "connect-wallet" });
+
+            // Connect wallet
+            const address = await monadGameService.connectWallet();
+            setWalletAddress(address);
+            setWalletConnected(true);
+
+            // Success toast
+            toast.success("Wallet connected successfully", {
+                id: "connect-wallet",
+                description: `Connected to ${import.meta.env.VITE_NETWORK_NAME || 'Monad Network'}`
+            });
+        } catch (error: any) {
+            console.error("Wallet connection error:", error);
+            setConnectionError(error.message || "Failed to connect wallet");
+
+            // Error toast
+            toast.error("Failed to connect wallet", {
+                id: "connect-wallet",
+                description: error.message || "Please try again"
+            });
+        } finally {
+            setIsConnecting(false);
+        }
+    };
+
+    const handleManualNetworkConfig = () => {
+        // Get network config from service
+        const networkConfig = monadGameService.getMonadNetworkConfig();
+
+        // Format for display
+        const formattedConfig = {
+            networkName: networkConfig.chainName,
+            chainId: networkConfig.chainId,
+            currencySymbol: networkConfig.nativeCurrency.symbol,
+            rpcUrl: networkConfig.rpcUrls[0],
+            blockExplorer: networkConfig.blockExplorerUrls[0]
+        };
+
+        // Show network config in toast
+        toast("Manual Network Configuration", {
+            description: "Add this network manually in MetaMask",
+            action: {
+                label: "Copy Details",
+                onClick: () => {
+                    navigator.clipboard.writeText(JSON.stringify(formattedConfig, null, 2));
+                    toast.success("Network details copied to clipboard");
+                }
+            },
+            duration: 10000
+        });
+
+        // Log to console for easy copy-paste
+        console.log("Manual Network Configuration:", formattedConfig);
+    };
+
+    const handleRemoveNetwork = async () => {
+        try {
+            toast.loading("Removing network from MetaMask...", { id: "remove-network" });
+            await monadGameService.tryRemoveMonadNetwork();
+            toast.success("Network removed successfully", {
+                id: "remove-network",
+                description: "Please try connecting again"
+            });
+        } catch (error: any) {
+            toast.error("Failed to remove network", {
+                id: "remove-network",
+                description: error.message || "Please try manually in MetaMask"
+            });
+        }
+    };
+
     if (!walletConnected) {
         return (
             <UICard className="glassmorphism border-emerald-500/30 p-6 text-center">
                 <h2 className="text-2xl font-bold text-white mb-4">Connect Your Wallet</h2>
+                <p className="text-gray-400 mb-6">Connect your MetaMask wallet to play Monad Chain Game</p>
+
                 <Button
-                    onClick={() => monadGameService.connectWallet()}
-                    className="bg-gradient-to-r from-emerald-400 to-teal-500"
+                    onClick={handleConnectWallet}
+                    disabled={isConnecting}
+                    className="bg-gradient-to-r from-emerald-400 to-teal-500 mb-4 w-full max-w-xs"
                 >
-                    Connect MetaMask
+                    {isConnecting ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Connecting...
+                        </>
+                    ) : "Connect MetaMask"}
                 </Button>
+
+                {connectionError && (
+                    <div className="text-red-400 text-sm mt-2 mb-4">
+                        {connectionError}
+                    </div>
+                )}
+
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                    <p className="text-gray-400 text-sm mb-3">Having trouble connecting?</p>
+                    <div className="flex flex-col sm:flex-row justify-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleManualNetworkConfig}
+                            className="text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                        >
+                            Manual Network Config
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRemoveNetwork}
+                            className="text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        >
+                            Remove Network
+                        </Button>
+                    </div>
+                </div>
             </UICard>
         );
     }

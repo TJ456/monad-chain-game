@@ -45,27 +45,43 @@ export class MonadGameService {
 
   async connectWallet(): Promise<string> {
     if (this.isConnected && this.walletAddress) {
+      console.log('Already connected to wallet:', this.walletAddress);
       return this.walletAddress;
     }
 
     if (!window.ethereum) {
-      throw new Error("MetaMask not installed");
+      throw new Error("MetaMask not installed. Please install MetaMask extension and refresh the page.");
     }
 
     try {
       // First, try to use the Alchemy provider for Monad testnet
-      console.log('Connecting to Monad testnet using Alchemy provider...');
+      console.log('Connecting to Monad network using Alchemy provider...');
+      console.log('Network configuration:', this.MONAD_TESTNET_CONFIG);
 
       // Get the Monad RPC URL from the Alchemy service
       const monadRpcUrl = alchemyNFTService.getMonadRpcUrl();
       console.log('Using Monad RPC URL:', monadRpcUrl);
 
-      // Configure MetaMask to use the Alchemy provider
-      await this.configureMetaMaskWithAlchemy(monadRpcUrl);
+      try {
+        // Configure MetaMask to use the Alchemy provider
+        await this.configureMetaMaskWithAlchemy(monadRpcUrl);
+      } catch (configError: any) {
+        console.error('Error configuring MetaMask with Alchemy:', configError);
+        throw new Error(`Failed to configure network: ${configError.message}. Try using the Manual Network Config option.`);
+      }
 
-      // Now connect using MetaMask
-      this.provider = new Web3Provider(window.ethereum, 'any');
-      await this.provider.send("eth_requestAccounts", []);
+      try {
+        // Now connect using MetaMask
+        this.provider = new Web3Provider(window.ethereum, 'any');
+        await this.provider.send("eth_requestAccounts", []);
+      } catch (accountsError: any) {
+        console.error('Error requesting accounts:', accountsError);
+        if (accountsError.code === 4001) {
+          // User rejected the request
+          throw new Error('You rejected the connection request. Please approve the MetaMask connection to continue.');
+        }
+        throw new Error(`Failed to connect to MetaMask: ${accountsError.message}`);
+      }
 
       // Get signer and address
       this.signer = this.provider.getSigner();
@@ -73,17 +89,36 @@ export class MonadGameService {
 
       console.log('Connected wallet address:', this.walletAddress);
 
-      // Handle network switching/adding
-      await this.ensureCorrectNetwork();
+      try {
+        // Handle network switching/adding
+        await this.ensureCorrectNetwork();
+      } catch (networkError: any) {
+        console.error('Error ensuring correct network:', networkError);
+        throw new Error(`Network configuration error: ${networkError.message}. Try removing the network and adding it again.`);
+      }
 
-      // Initialize contract after ensuring correct network
-      await this.initializeContract();
+      try {
+        // Initialize contract after ensuring correct network
+        await this.initializeContract();
+      } catch (contractError: any) {
+        console.error('Error initializing contract:', contractError);
+        // We can continue without contract initialization in some cases
+        console.warn('Continuing without contract initialization');
+      }
 
       this.isConnected = true;
       return this.walletAddress;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting wallet:', error);
       this.resetState();
+
+      // Enhance error message for common issues
+      if (error.message?.includes('already pending')) {
+        throw new Error('MetaMask has a pending request. Please open MetaMask and check for pending requests.');
+      } else if (error.message?.includes('User rejected')) {
+        throw new Error('You rejected the connection request. Please approve the MetaMask connection to continue.');
+      }
+
       throw error;
     }
   }
@@ -185,65 +220,100 @@ export class MonadGameService {
   private async ensureCorrectNetwork(): Promise<void> {
     if (!this.provider) throw new Error("Provider not initialized");
 
-    const currentNetwork = await this.provider.getNetwork();
-    const requiredChainId = this.MONAD_TESTNET_CONFIG.chainId;
-    const requiredChainIdHex = requiredChainId.startsWith('0x') ? requiredChainId : `0x${parseInt(requiredChainId).toString(16)}`;
+    try {
+      const currentNetwork = await this.provider.getNetwork();
+      const requiredChainId = this.MONAD_TESTNET_CONFIG.chainId;
+      const requiredChainIdHex = requiredChainId.startsWith('0x') ? requiredChainId : `0x${parseInt(requiredChainId).toString(16)}`;
+      const requiredChainIdDecimal = parseInt(requiredChainIdHex, 16);
 
-    console.log('Current network:', currentNetwork.chainId, 'Required network:', parseInt(requiredChainIdHex, 16));
+      console.log('Current network:', {
+        chainId: currentNetwork.chainId,
+        name: currentNetwork.name,
+        ensAddress: currentNetwork.ensAddress
+      });
+      console.log('Required network:', {
+        chainId: requiredChainIdDecimal,
+        chainIdHex: requiredChainIdHex,
+        name: this.MONAD_TESTNET_CONFIG.chainName
+      });
 
-    if (currentNetwork.chainId !== parseInt(requiredChainIdHex, 16)) {
+      // Check if we're already on the correct network
+      if (currentNetwork.chainId === requiredChainIdDecimal) {
+        console.log('Already on the correct network');
+        return;
+      }
+
+      console.log(`Network mismatch. Current: ${currentNetwork.chainId}, Required: ${requiredChainIdDecimal}`);
+      console.log('Attempting to switch to Monad network...');
+
       try {
-        console.log('Attempting to switch to Monad Testnet...');
         // First try to switch to the network
         await window.ethereum.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: requiredChainIdHex }],
         });
+        console.log('Successfully switched to Monad network');
       } catch (switchError: any) {
         console.log('Switch error:', switchError.code, switchError.message);
+
         // If the network is not added (error code 4902), add it
         if (switchError.code === 4902) {
+          console.log('Network not found in MetaMask, attempting to add it...');
           try {
-            console.log('Adding Monad network to MetaMask with config:', {
+            const networkConfig = {
               ...this.MONAD_TESTNET_CONFIG,
               chainId: requiredChainIdHex
-            });
+            };
+
+            console.log('Adding Monad network to MetaMask with config:', networkConfig);
 
             // Try to add the network
             await window.ethereum.request({
               method: 'wallet_addEthereumChain',
-              params: [{
-                ...this.MONAD_TESTNET_CONFIG,
-                chainId: requiredChainIdHex
-              }],
+              params: [networkConfig],
             });
 
             console.log('Network added successfully');
           } catch (addError: any) {
-            console.error('Failed to add Monad Testnet:', addError);
+            console.error('Failed to add Monad network:', addError);
 
             // Provide more detailed error message
-            let errorMsg = `Failed to add Monad Testnet: ${addError.message}`;
+            let errorMsg = `Failed to add Monad network: ${addError.message}`;
 
             if (addError.message?.includes('already exists')) {
               errorMsg = 'This network already exists in your wallet but with different parameters. Please remove it from MetaMask and try again.';
             } else if (addError.message?.includes('rejected')) {
-              errorMsg = 'You rejected the request to add the Monad Testnet network. Please try again and approve the request.';
+              errorMsg = 'You rejected the request to add the Monad network. Please try again and approve the request.';
             }
 
             throw new Error(errorMsg);
           }
+        } else if (switchError.code === 4001) {
+          // User rejected the request
+          throw new Error('You rejected the request to switch networks. Please approve the network switch in MetaMask.');
         } else {
           console.error('Failed to switch network:', switchError);
-          throw new Error(`Failed to switch to Monad Testnet: ${switchError.message}`);
+          throw new Error(`Failed to switch to Monad network: ${switchError.message}`);
         }
       }
 
       // Verify the connection after switching/adding network
-      const verifyNetwork = await this.provider.getNetwork();
-      if (verifyNetwork.chainId !== parseInt(requiredChainIdHex, 16)) {
-        throw new Error('Failed to connect to Monad Testnet. Please try again.');
+      try {
+        const verifyNetwork = await this.provider.getNetwork();
+        console.log('Verifying network after switch:', verifyNetwork.chainId, 'Required:', requiredChainIdDecimal);
+
+        if (verifyNetwork.chainId !== requiredChainIdDecimal) {
+          throw new Error(`Network verification failed. Current: ${verifyNetwork.chainId}, Required: ${requiredChainIdDecimal}`);
+        }
+
+        console.log('Network verification successful');
+      } catch (verifyError) {
+        console.error('Network verification error:', verifyError);
+        throw new Error(`Failed to verify network connection: ${verifyError.message}. Please try manually switching to ${this.MONAD_TESTNET_CONFIG.chainName} in MetaMask.`);
       }
+    } catch (error) {
+      console.error('Error in ensureCorrectNetwork:', error);
+      throw error;
     }
   }
 
