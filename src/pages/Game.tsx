@@ -182,6 +182,29 @@ const Game = () => {
       } catch (error) {
         console.error('Error initializing MonadDb:', error);
       }
+
+      // Add listener for copied cards
+      monadGameService.addCardCopiedListener((copiedCard) => {
+        console.log('Card copied event received:', copiedCard);
+
+        // Add the copied card to the player's deck
+        setPlayerDeck(prevDeck => [...prevDeck, copiedCard]);
+
+        // Show a toast notification
+        toast.success(
+          <div className="flex items-center">
+            <span className="mr-2">Card Copied Successfully!</span>
+            <span className="text-purple-400 animate-pulse">⚡</span>
+          </div>,
+          {
+            description: `You've copied ${copiedCard.name} from your opponent using Blockchain Hack!`,
+            duration: 5000,
+          }
+        );
+
+        // Add to battle log
+        setBattleLog(prev => [...prev, `🔮 Blockchain Hack successful! Copied ${copiedCard.name} from opponent's wallet.`]);
+      });
         try {
             // Connect wallet
             const address = await monadGameService.connectWallet();
@@ -265,6 +288,11 @@ const Game = () => {
     return () => {
       const wsService = WebSocketService.getInstance();
       wsService.disconnect();
+
+      // Remove card copied listener
+      monadGameService.removeCardCopiedListener((copiedCard) => {
+        console.log('Removing card copied listener');
+      });
     };
   }, []);
 
@@ -627,6 +655,7 @@ const Game = () => {
   }
 
   const endTurn = useCallback((nextPlayer: 'player' | 'opponent') => {
+    // Handle MONAD Boost expiration
     if (boostActive && boostDetails) {
       const newTurnsLeft = boostDetails.remainingTurns - 1;
 
@@ -653,6 +682,50 @@ const Game = () => {
         }
       }
     }
+
+    // Handle copied cards expiration
+    setPlayerDeck(prevDeck => {
+      // Check for any copied cards that need to expire
+      const updatedDeck = prevDeck.map(card => {
+        if (card.isCopied && card.expiresInTurns !== undefined) {
+          // Decrement the expiration counter
+          return {
+            ...card,
+            expiresInTurns: card.expiresInTurns - 1
+          };
+        }
+        return card;
+      });
+
+      // Find any cards that have expired
+      const expiredCards = updatedDeck.filter(card =>
+        card.isCopied && card.expiresInTurns !== undefined && card.expiresInTurns <= 0
+      );
+
+      // Remove expired cards from the deck
+      const remainingCards = updatedDeck.filter(card =>
+        !card.isCopied || card.expiresInTurns === undefined || card.expiresInTurns > 0
+      );
+
+      // Notify about expired cards
+      if (expiredCards.length > 0) {
+        expiredCards.forEach(card => {
+          setBattleLog(prev => [...prev, `🔮 Copied card ${card.name} has expired and returned to its original owner.`]);
+        });
+
+        toast.info(
+          <div className="flex items-center">
+            <span className="mr-2">Copied Card Expired</span>
+          </div>,
+          {
+            description: `${expiredCards.length} copied card(s) have expired and returned to their original owner.`,
+            duration: 3000,
+          }
+        );
+      }
+
+      return remainingCards;
+    });
 
     setCurrentTurn(nextPlayer);
 

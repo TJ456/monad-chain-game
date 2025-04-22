@@ -1,14 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import GameCard from './GameCard';
-import { Card as GameCardType, CardRarity } from '@/types/game';
+import { Card as GameCardType, CardRarity, CardType, CardStatus } from '@/types/game';
 import { currentPlayer } from '@/data/gameData';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Flame, Sparkles, ArrowRight, Check, AlertTriangle, Zap, Shield, Wand2 } from "lucide-react";
 
 const BurnToEvolve: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -20,19 +24,70 @@ const BurnToEvolve: React.FC = () => {
   const [potentialEvolvedCard, setPotentialEvolvedCard] = useState<GameCardType | null>(null);
   const [showPreviewNotification, setShowPreviewNotification] = useState(false);
 
+  // State for custom card attributes
+  const [customCardName, setCustomCardName] = useState<string>("");
+  const [customCardDescription, setCustomCardDescription] = useState<string>("");
+  const [customCardType, setCustomCardType] = useState<string>("attack");
+  const [customAttackPower, setCustomAttackPower] = useState<number>(0);
+  const [customDefensePower, setCustomDefensePower] = useState<number>(0);
+  const [customManaCost, setCustomManaCost] = useState<number>(0);
+  const [customSpecialPower, setCustomSpecialPower] = useState<number>(0);
+
   // Generate potential evolve results based on selected cards
   const getPotentialResult = (): GameCardType => {
+    // Calculate base stats from selected cards
+    const totalAttack = selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0);
+    const totalDefense = selectedCards.reduce((sum, card) => sum + (card.defense || 0), 0);
+    const avgMana = selectedCards.reduce((sum, card) => sum + card.mana, 0) / 2;
+    const isRare = selectedCards.some(card => card.rarity === CardRarity.RARE);
+    const isEpic = selectedCards.some(card => card.rarity === CardRarity.EPIC);
+
+    // Determine base rarity based on input cards
+    let baseRarity = CardRarity.COMMON;
+    if (isEpic || (isRare && totalAttack > 10)) {
+      baseRarity = CardRarity.EPIC;
+    } else if (isRare) {
+      baseRarity = CardRarity.RARE;
+    }
+
+    // Generate default name if not provided
+    const defaultName = baseRarity === CardRarity.EPIC ? "Inferno Leviathan" :
+                        baseRarity === CardRarity.RARE ? "Flame Colossus" : "Phoenix Guardian";
+
+    // Use custom values if provided, otherwise use calculated values
+    const cardName = customCardName || defaultName;
+    const cardDescription = customCardDescription || "Born from the ashes of sacrifice";
+    const cardType = customCardType as any || "attack";
+
+    // Calculate attack/defense/mana based on sliders
+    // If custom values are 0, use the calculated values
+    const attackValue = customAttackPower > 0 ?
+      Math.round(totalAttack * (1 + customAttackPower/100)) :
+      Math.round(totalAttack * 1.5);
+
+    const defenseValue = customDefensePower > 0 ?
+      Math.round(totalDefense * (1 + customDefensePower/100)) :
+      Math.round(totalDefense * 1.5) || undefined;
+
+    const manaValue = customManaCost > 0 ?
+      Math.round(avgMana * (1 + customManaCost/100)) :
+      Math.round(avgMana * 1.2);
+
     // Base evolved card template
     const baseEvolved: GameCardType = {
       id: `evolved-${Date.now()}`,
-      name: "Phoenix Guardian",
-      description: "Born from the ashes of sacrifice",
+      name: cardName,
+      description: cardDescription,
       image: "/phoenix-guardian.png",
-      rarity: CardRarity.RARE,
-      type: "attack" as any,
-      mana: 3,
-      attack: 6,
+      rarity: baseRarity,
+      type: cardType,
+      mana: manaValue,
+      attack: attackValue,
+      defense: defenseValue,
+      special: customSpecialPower > 0 ? customSpecialPower : undefined,
       monadId: `0xEVOLVE${Math.floor(Math.random() * 10000)}`,
+      status: CardStatus.ACTIVE,
+      evolvedFrom: selectedCards.map(card => card.id),
       onChainMetadata: {
         creator: "0xBurnToEvolve",
         creationBlock: 1420999 + Math.floor(Math.random() * 100),
@@ -41,34 +96,12 @@ const BurnToEvolve: React.FC = () => {
       }
     };
 
-    // Customize evolved card based on selected cards
-    if (selectedCards.length === 2) {
-      const totalAttack = selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0);
-      const totalDefense = selectedCards.reduce((sum, card) => sum + (card.defense || 0), 0);
-      const avgMana = selectedCards.reduce((sum, card) => sum + card.mana, 0) / 2;
-      const isRare = selectedCards.some(card => card.rarity === CardRarity.RARE);
-      const isEpic = selectedCards.some(card => card.rarity === CardRarity.EPIC);
-
-      // Calculate new stats based on input cards
-      baseEvolved.attack = Math.round(totalAttack * 1.5);
-      baseEvolved.defense = Math.round(totalDefense * 1.5) || undefined;
-      baseEvolved.mana = Math.round(avgMana * 1.2);
-
-      // Determine rarity based on input cards
-      if (isEpic || (isRare && totalAttack > 10)) {
-        baseEvolved.rarity = CardRarity.EPIC;
-        baseEvolved.name = "Inferno Leviathan";
-      } else if (isRare) {
-        baseEvolved.name = "Flame Colossus";
-      }
-
-      // Add special effect for higher rarity cards
-      if (baseEvolved.rarity === CardRarity.EPIC) {
-        baseEvolved.specialEffect = {
-          description: "Inflicts burn damage for 2 turns",
-          effectType: "DEBUFF"
-        };
-      }
+    // Add special effect for higher rarity cards
+    if (baseEvolved.rarity === CardRarity.EPIC) {
+      baseEvolved.specialEffect = {
+        description: "Inflicts burn damage for 2 turns",
+        effectType: "DEBUFF"
+      };
     }
 
     return baseEvolved;
@@ -146,6 +179,35 @@ const BurnToEvolve: React.FC = () => {
     }
   };
 
+  // Initialize custom card values when cards are selected
+  useEffect(() => {
+    if (selectedCards.length === 2) {
+      // Calculate base stats from selected cards
+      const totalAttack = selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0);
+      const totalDefense = selectedCards.reduce((sum, card) => sum + (card.defense || 0), 0);
+      const avgMana = selectedCards.reduce((sum, card) => sum + card.mana, 0) / 2;
+      const isRare = selectedCards.some(card => card.rarity === CardRarity.RARE);
+      const isEpic = selectedCards.some(card => card.rarity === CardRarity.EPIC);
+
+      // Determine default name based on rarity
+      let defaultName = "Phoenix Guardian";
+      if (isEpic || (isRare && totalAttack > 10)) {
+        defaultName = "Inferno Leviathan";
+      } else if (isRare) {
+        defaultName = "Flame Colossus";
+      }
+
+      // Set default values
+      setCustomCardName(defaultName);
+      setCustomCardDescription("Born from the ashes of sacrifice");
+      setCustomCardType("attack");
+      setCustomAttackPower(50); // Default 50% boost
+      setCustomDefensePower(50); // Default 50% boost
+      setCustomManaCost(20); // Default 20% increase
+      setCustomSpecialPower(Math.round((totalAttack + totalDefense) / 4)); // Default special power
+    }
+  }, [selectedCards]);
+
   const handleBurn = () => {
     if (selectedCards.length < 2) {
       toast.error("Select 2 cards to burn");
@@ -169,28 +231,43 @@ const BurnToEvolve: React.FC = () => {
     });
 
     setTimeout(() => {
-      toast.success("Cards burned successfully!", {
-        id: "burn-evolve",
-        description: "Creating new evolved card..."
+      // Mark the selected cards as burnt instead of removing them
+      const updatedDeck = playerDeck.map(card => {
+        if (selectedCards.some(c => c.id === card.id)) {
+          return {
+            ...card,
+            status: CardStatus.BURNT,
+            evolvedInto: evolvedCard.id
+          };
+        }
+        return card;
       });
 
-      // Remove selected cards from deck (local state)
-      const updatedDeck = playerDeck.filter(card =>
-        !selectedCards.some(selected => selected.id === card.id)
-      );
       setPlayerDeck(updatedDeck);
 
       // Also update the global currentPlayer object
-      currentPlayer.cards = currentPlayer.cards.filter(card =>
-        !selectedCards.some(selected => selected.id === card.id)
-      );
+      currentPlayer.cards = currentPlayer.cards.map(card => {
+        if (selectedCards.some(c => c.id === card.id)) {
+          return {
+            ...card,
+            status: CardStatus.BURNT,
+            evolvedInto: evolvedCard.id
+          };
+        }
+        return card;
+      });
+
+      toast.success("Cards successfully burnt!", {
+        id: "burn-evolve",
+        description: "Creating new evolved card..."
+      });
 
       // Deduct MONAD cost
       setPlayerMonad(prev => prev - 5);
       currentPlayer.monad -= 5;
 
       setTimeout(() => {
-        // Add evolved card directly to player's deck (local state)
+        // Add evolved card to player's deck (local state)
         const newDeck = [...updatedDeck, evolvedCard];
         setPlayerDeck(newDeck);
 
@@ -244,12 +321,10 @@ const BurnToEvolve: React.FC = () => {
     setStep(1);
   };
 
-
-
   const evolvedCard = getPotentialResult();
 
   return (
-    <Card className="bg-gradient-to-br from-slate-900 to-slate-800 border-orange-500/40 p-8 h-full flex flex-col shadow-xl relative overflow-hidden">
+    <div className="rounded-lg border bg-gradient-to-br from-slate-900 to-slate-800 border-orange-500/40 p-8 h-full flex flex-col shadow-xl relative overflow-hidden">
       {/* Animated flame particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(15)].map((_, i) => (
@@ -262,7 +337,7 @@ const BurnToEvolve: React.FC = () => {
               opacity: Math.random() * 0.5 + 0.2,
               animationDuration: `${Math.random() * 3 + 2}s`,
               animationDelay: `${Math.random() * 2}s`,
-              background: `radial-gradient(circle, rgba(255,${Math.random() * 100 + 100},0,0.8) 0%, rgba(255,${Math.random() * 50 + 50},0,0) 70%)`
+              background: `radial-gradient(circle, rgba(255, 150, 0, 0.8) 0%, rgba(255, 100, 0, 0) 70%)`
             }}
           />
         ))}
@@ -295,6 +370,137 @@ const BurnToEvolve: React.FC = () => {
             <h4 className="text-xl font-bold text-white">Select Cards to Burn</h4>
             <p className="text-sm text-gray-300 mt-2">Sacrifice two cards to mint a more powerful one</p>
           </div>
+
+          {selectedCards.length === 2 && (
+            <div className="mb-6 bg-black/30 p-4 rounded-lg border border-orange-500/30">
+              <h3 className="text-lg font-bold text-orange-400 mb-3">Customize Your Evolved Card</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <Label htmlFor="cardName" className="text-orange-300">Card Name</Label>
+                  <Input
+                    id="cardName"
+                    value={customCardName}
+                    onChange={(e) => setCustomCardName(e.target.value)}
+                    className="bg-black/50 border-orange-500/30 text-white"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="cardType" className="text-orange-300">Card Type</Label>
+                  <Select value={customCardType} onValueChange={setCustomCardType}>
+                    <SelectTrigger className="bg-black/50 border-orange-500/30 text-white">
+                      <SelectValue placeholder="Select card type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-black border-orange-500/30">
+                      <SelectItem value="attack" className="text-rose-400">
+                        <div className="flex items-center">
+                          <Zap className="h-4 w-4 mr-2 text-rose-500" />
+                          Attack
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="defense" className="text-cyan-400">
+                        <div className="flex items-center">
+                          <Shield className="h-4 w-4 mr-2 text-cyan-500" />
+                          Defense
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="utility" className="text-fuchsia-400">
+                        <div className="flex items-center">
+                          <Wand2 className="h-4 w-4 mr-2 text-fuchsia-500" />
+                          Utility
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <Label htmlFor="cardDescription" className="text-orange-300">Card Description</Label>
+                <Textarea
+                  id="cardDescription"
+                  value={customCardDescription}
+                  onChange={(e) => setCustomCardDescription(e.target.value)}
+                  className="bg-black/50 border-orange-500/30 text-white h-20"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <Label htmlFor="attackPower" className="text-rose-400 flex items-center">
+                      <Zap className="h-4 w-4 mr-1" /> Attack Power Boost
+                    </Label>
+                    <span className="text-white text-sm">+{customAttackPower}%</span>
+                  </div>
+                  <Slider
+                    id="attackPower"
+                    min={0}
+                    max={200}
+                    step={5}
+                    value={[customAttackPower]}
+                    onValueChange={(value) => setCustomAttackPower(value[0])}
+                    className="py-2"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <Label htmlFor="defensePower" className="text-cyan-400 flex items-center">
+                      <Shield className="h-4 w-4 mr-1" /> Defense Power Boost
+                    </Label>
+                    <span className="text-white text-sm">+{customDefensePower}%</span>
+                  </div>
+                  <Slider
+                    id="defensePower"
+                    min={0}
+                    max={200}
+                    step={5}
+                    value={[customDefensePower]}
+                    onValueChange={(value) => setCustomDefensePower(value[0])}
+                    className="py-2"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <Label htmlFor="manaCost" className="text-blue-400 flex items-center">
+                      <span className="text-blue-400 mr-1">⚡</span> Mana Cost Adjustment
+                    </Label>
+                    <span className="text-white text-sm">+{customManaCost}%</span>
+                  </div>
+                  <Slider
+                    id="manaCost"
+                    min={-50}
+                    max={100}
+                    step={5}
+                    value={[customManaCost]}
+                    onValueChange={(value) => setCustomManaCost(value[0])}
+                    className="py-2"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <Label htmlFor="specialPower" className="text-purple-400 flex items-center">
+                      <Sparkles className="h-4 w-4 mr-1" /> Special Ability Power
+                    </Label>
+                    <span className="text-white text-sm">{customSpecialPower}</span>
+                  </div>
+                  <Slider
+                    id="specialPower"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={[customSpecialPower]}
+                    onValueChange={(value) => setCustomSpecialPower(value[0])}
+                    className="py-2"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <Button
             className="w-full mb-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-12 text-base font-medium shadow-md shadow-orange-900/20 transition-all duration-300 hover:shadow-lg hover:shadow-orange-900/30 group relative overflow-hidden"
@@ -688,7 +894,7 @@ const BurnToEvolve: React.FC = () => {
       <div className="mt-4 text-center text-xs text-gray-500 relative z-10">
         Powered by Monad's deflationary NFT mechanics
       </div>
-    </Card>
+    </div>
   );
 };
 

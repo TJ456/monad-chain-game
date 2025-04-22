@@ -99,7 +99,9 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
         <div className={cn(
           "absolute inset-0 border-2",
           rarityStyles[card.rarity],
-          card.boosted ? "ring-1 ring-amber-400/50" : ""
+          card.boosted ? "ring-1 ring-amber-400/50" : "",
+          card.isCopied ? "ring-1 ring-purple-400/50" : "",
+          card.status === "burnt" ? "ring-1 ring-orange-600/70 opacity-70" : ""
         )}>
           {/* Holographic effect */}
           <div className="absolute inset-0 opacity-20 mix-blend-overlay bg-gradient-to-br from-transparent via-white to-transparent"
@@ -118,6 +120,34 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
           {/* Boosted effect */}
           {card.boosted && (
             <div className="absolute inset-0 bg-gradient-to-r from-amber-400/10 to-fuchsia-500/10 animate-pulse"></div>
+          )}
+
+          {/* Copied card effect */}
+          {card.isCopied && (
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-400/10 to-blue-500/10 animate-pulse">
+              <div className="absolute top-0 right-0 m-1 bg-purple-900/80 text-purple-300 text-xs px-1 py-0.5 rounded-sm border border-purple-500/50">
+                Copied
+              </div>
+              {card.expiresInTurns !== undefined && (
+                <div className="absolute bottom-0 right-0 m-1 bg-purple-900/80 text-purple-300 text-xs px-1 py-0.5 rounded-sm border border-purple-500/50">
+                  {card.expiresInTurns} {card.expiresInTurns === 1 ? 'turn' : 'turns'}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Burnt card effect */}
+          {card.status === "burnt" && (
+            <div className="absolute inset-0 bg-gradient-to-r from-orange-700/30 to-red-800/30">
+              <div className="absolute top-0 right-0 m-1 bg-orange-900/80 text-orange-300 text-xs px-1 py-0.5 rounded-sm border border-orange-500/50">
+                Burnt
+              </div>
+              {card.evolvedInto && (
+                <div className="absolute bottom-0 right-0 m-1 bg-orange-900/80 text-orange-300 text-xs px-1 py-0.5 rounded-sm border border-orange-500/50">
+                  Evolved
+                </div>
+              )}
+            </div>
           )}
 
           {/* Energy field effect */}
@@ -171,6 +201,53 @@ const GameCard: React.FC<GameCardProps> = ({ card, onClick, className, showDetai
                       <div className="text-xs">
                         <span className="text-amber-400 font-bold">MONAD Boosted</span>
                         <div className="text-slate-300 mt-1">This card's power has been amplified by MONAD tokens</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              {/* Copied card badge */}
+              {card.isCopied && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-purple-500/30">
+                        <Zap className="h-3 w-3 text-purple-400" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-black/90 border-purple-500/50">
+                      <div className="text-xs">
+                        <span className="text-purple-400 font-bold">Copied Card</span>
+                        <div className="text-slate-300 mt-1">This card was copied from your opponent using Blockchain Hack</div>
+                        {card.expiresInTurns !== undefined && (
+                          <div className="text-purple-300 mt-1">Expires in {card.expiresInTurns} {card.expiresInTurns === 1 ? 'turn' : 'turns'}</div>
+                        )}
+                        {card.originalOwner && (
+                          <div className="text-slate-400 mt-1 text-[10px]">Original owner: {card.originalOwner}</div>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              {/* Burnt card badge */}
+              {card.status === "burnt" && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="ml-1 flex items-center justify-center h-4 w-4 rounded-full bg-orange-500/30">
+                        <Flame className="h-3 w-3 text-orange-400" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="bg-black/90 border-orange-500/50">
+                      <div className="text-xs">
+                        <span className="text-orange-400 font-bold">Burnt Card</span>
+                        <div className="text-slate-300 mt-1">This card was sacrificed in the evolution process</div>
+                        {card.evolvedInto && (
+                          <div className="text-orange-300 mt-1">Evolved into a new card</div>
+                        )}
                       </div>
                     </TooltipContent>
                   </Tooltip>
