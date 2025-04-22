@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "./button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Database } from "lucide-react";
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -68,6 +68,17 @@ const Navbar: React.FC = () => {
             >
               <Sparkles className="w-3 h-3 mr-1" />
               NFT Features
+            </Link>
+            <Link
+              to="/consensus"
+              className={`text-sm flex items-center ${
+                isActive("/consensus")
+                  ? "text-blue-400 font-medium"
+                  : "text-gray-400 hover:text-white"
+              }`}
+            >
+              <Database className="w-3 h-3 mr-1" />
+              Consensus
             </Link>
           </div>
         </div>
