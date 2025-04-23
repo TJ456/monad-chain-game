@@ -8,20 +8,24 @@ import { MintedNFT } from '../services/MonadNFTService';
 import { nftPropagationService } from '../services/NFTPropagationService';
 import NFTCard from './NFTCard';
 import { Zap, Network, Share2, ArrowRight, Sparkles, RefreshCw } from 'lucide-react';
-import ExecutionMetrics from './ExecutionMetrics';
+import PropagationMetrics from './PropagationMetrics';
 
 interface NFTPropagationVisualizerProps {
   nft?: MintedNFT;
   propagationId?: string;
   onComplete?: (result: NFTPropagationResult) => void;
   onEvolve?: (evolvedNFT: MintedNFT) => void;
+  onPropagationStart?: () => void;
+  onPropagationError?: () => void;
 }
 
 const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
   nft,
   propagationId,
   onComplete,
-  onEvolve
+  onEvolve,
+  onPropagationStart,
+  onPropagationError
 }) => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -32,19 +36,60 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
 
   // Load existing propagation if ID is provided
   useEffect(() => {
-    if (propagationId) {
-      const existingPropagation = raptorCastService.getNFTPropagation(propagationId);
-      if (existingPropagation) {
-        setPropagationResult(existingPropagation);
+    const loadExistingPropagation = async () => {
+      try {
+        // Make sure RaptorCast service is initialized
+        if (!raptorCastService['isInitialized']) {
+          await raptorCastService.initialize();
+        }
+
+        if (propagationId) {
+          console.log('Loading existing propagation with ID:', propagationId);
+          const existingPropagation = raptorCastService.getNFTPropagation(propagationId);
+          if (existingPropagation) {
+            console.log('Found existing propagation:', existingPropagation);
+            setPropagationResult(existingPropagation);
+          }
+        } else if (nft) {
+          // Check if this NFT has already been propagated
+          console.log('Checking if NFT has already been propagated:', nft.tokenId);
+          const existingPropagations = raptorCastService.getAllNFTPropagations();
+          // Convert Map to Array for find operation
+          const propagationsArray = Array.from(existingPropagations.values());
+          const existingPropagation = propagationsArray.find((p: NFTPropagationResult) => p.nft.tokenId === nft.tokenId);
+
+          if (existingPropagation) {
+            console.log('Found existing propagation for NFT:', existingPropagation);
+            setPropagationResult(existingPropagation);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading existing propagation:', error);
       }
-    }
-  }, [propagationId]);
+    };
+
+    loadExistingPropagation();
+  }, [propagationId, nft]);
 
   // Start propagation if NFT is provided
   useEffect(() => {
     if (nft && !propagationId && !propagationResult) {
       // Don't auto-start propagation, let user click the button instead
       // This makes the flow more logical and user-controlled
+
+      // Make sure RaptorCast service is initialized
+      const initializeRaptorCast = async () => {
+        if (!raptorCastService['isInitialized']) {
+          try {
+            await raptorCastService.initialize();
+            console.log('RaptorCast service initialized successfully');
+          } catch (error) {
+            console.error('Failed to initialize RaptorCast service:', error);
+          }
+        }
+      };
+
+      initializeRaptorCast();
     }
   }, [nft, propagationId, propagationResult]);
 
@@ -76,45 +121,137 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Get the broadcast tree
-    const tree = raptorCastService.getBroadcastTree(propagationResult.messageId);
-    if (!tree) return;
+    try {
+      // Get the broadcast tree
+      const tree = raptorCastService.getBroadcastTree(propagationResult.messageId);
+      if (!tree) {
+        console.warn('No broadcast tree found for message ID:', propagationResult.messageId);
+        // Draw a fallback visualization
+        drawFallbackVisualization(ctx, canvas.width, canvas.height);
+        return;
+      }
 
-    // Draw the tree
-    drawBroadcastTree(ctx, tree, canvas.width, canvas.height);
+      // Draw the tree
+      drawBroadcastTree(ctx, tree, canvas.width, canvas.height);
 
-    // If animating, highlight the propagation path
-    if (isAnimating && propagationResult.propagationPath) {
-      highlightPropagationPath(ctx, tree, propagationResult.propagationPath, currentStep, canvas.width, canvas.height);
+      // If animating, highlight the propagation path
+      if (isAnimating && propagationResult.propagationPath && propagationResult.propagationPath.length > 0) {
+        highlightPropagationPath(ctx, tree, propagationResult.propagationPath, currentStep, canvas.width, canvas.height);
+      }
+    } catch (error) {
+      console.error('Error drawing propagation network:', error);
+      // Draw a fallback visualization
+      drawFallbackVisualization(ctx, canvas.width, canvas.height);
     }
   }, [propagationResult, isAnimating, currentStep]);
 
+  // Fallback visualization when tree data is not available
+  const drawFallbackVisualization = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // Draw a simple network visualization
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.8)';
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 3, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Draw some nodes
+    const nodePositions = [
+      [width / 4, height / 2],
+      [width / 2, height / 2],
+      [width * 3 / 4, height / 2],
+      [width / 3, height * 2 / 3],
+      [width * 2 / 3, height * 2 / 3]
+    ];
+
+    // Draw connections
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
+    ctx.lineWidth = 1;
+
+    for (const [x, y] of nodePositions) {
+      ctx.beginPath();
+      ctx.moveTo(width / 2, height / 3);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      // Draw node
+      ctx.fillStyle = 'rgba(139, 92, 246, 0.8)';
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Add a message
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Simulated Network Visualization', width / 2, height - 20);
+  };
+
   const startPropagation = async () => {
-    if (!nft) return;
+    if (!nft) {
+      toast.error('No NFT provided for propagation');
+      return;
+    }
 
     setIsAnimating(true);
     setCurrentStep(0);
+
+    // Call the onPropagationStart callback if provided
+    if (onPropagationStart) {
+      onPropagationStart();
+    }
 
     const toastId = toast.loading('Preparing NFT for propagation through RaptorCast...');
 
     try {
       // Make sure RaptorCast service is initialized
       if (!raptorCastService['isInitialized']) {
-        await raptorCastService.initialize();
+        console.log('Initializing RaptorCast service...');
+        try {
+          await raptorCastService.initialize();
+          console.log('RaptorCast service initialized successfully');
+        } catch (initError) {
+          console.error('Failed to initialize RaptorCast service:', initError);
+          toast.error('Failed to initialize RaptorCast service', {
+            id: toastId,
+            description: 'Please try again or refresh the page'
+          });
+          setIsAnimating(false);
+          return;
+        }
       }
 
-      // Propagate the NFT through RaptorCast
-      const result = await raptorCastService.propagateNFT(nft);
+      console.log('Starting NFT propagation for token ID:', nft.tokenId);
 
+      // Propagate the NFT through RaptorCast
+      let result: NFTPropagationResult;
+      try {
+        result = await raptorCastService.propagateNFT(nft);
+        console.log('Propagation result:', result);
+      } catch (propagateError) {
+        console.error('Error in raptorCastService.propagateNFT:', propagateError);
+        throw propagateError; // Let the outer catch handle this
+      }
+
+      if (!result) {
+        throw new Error('Propagation result is undefined or null');
+      }
+
+      // Store the result in state
       setPropagationResult(result);
 
+      // Update toast with success message
       toast.success('NFT propagation initiated!', {
         id: toastId,
         description: `Propagating through ${result.receivingNodes.length} nodes with ${result.replicationFactor.toFixed(2)}x replication`
       });
 
       // Animate the propagation
-      await animatePropagation(result);
+      try {
+        await animatePropagation(result);
+      } catch (animationError) {
+        console.error('Error animating propagation:', animationError);
+        // Continue even if animation fails
+      }
 
       // Check if the NFT can evolve
       if (result.evolutionFactor && result.evolutionFactor > 0) {
@@ -124,24 +261,40 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
 
         try {
           // Evolve the NFT
+          console.log('Evolving NFT from propagation...');
           const evolved = await raptorCastService.evolveNFTFromPropagation(result.messageId);
 
           if (evolved) {
+            console.log('NFT evolved successfully:', evolved);
             setEvolvedNFT(evolved);
             setShowEvolvedNFT(true);
 
             if (onEvolve) {
               onEvolve(evolved);
             }
+          } else {
+            console.warn('Evolution returned null result');
           }
         } catch (evolveError) {
           console.error('Error evolving NFT:', evolveError);
+          toast.warning('Could not evolve NFT', {
+            description: 'The evolution process encountered an error, but propagation was successful.'
+          });
           // Continue even if evolution fails
         }
+      } else {
+        console.log('NFT did not reach evolution threshold');
       }
 
+      // Call the onComplete callback if provided
       if (onComplete) {
-        onComplete(result);
+        console.log('Calling onComplete callback with result');
+        try {
+          onComplete(result);
+        } catch (callbackError) {
+          console.error('Error in onComplete callback:', callbackError);
+          // Continue even if callback fails
+        }
       }
     } catch (error) {
       console.error('Error propagating NFT:', error);
@@ -150,23 +303,76 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
         description: 'Failed to propagate NFT through RaptorCast'
       });
 
+      // Call the onPropagationError callback if provided
+      if (onPropagationError) {
+        onPropagationError();
+      }
+
       // Try to recover by using the NFTPropagationService directly
       try {
+        console.log('Attempting fallback propagation using NFTPropagationService...');
+
+        // Initialize NFTPropagationService if needed
+        if (!nftPropagationService['isInitialized']) {
+          await nftPropagationService.initialize();
+        }
+
         const fallbackResult = await nftPropagationService.propagateNFT(nft);
-        setPropagationResult(fallbackResult);
+        console.log('Fallback propagation result:', fallbackResult);
 
-        toast.success('Recovered using fallback propagation', {
-          description: `Propagating through ${fallbackResult.receivingNodes.length} nodes`
-        });
+        if (fallbackResult) {
+          setPropagationResult(fallbackResult);
 
-        // Animate the propagation
-        await animatePropagation(fallbackResult);
+          toast.success('Recovered using fallback propagation', {
+            description: `Propagating through ${fallbackResult.receivingNodes.length} nodes`
+          });
 
-        if (onComplete) {
-          onComplete(fallbackResult);
+          // Animate the propagation
+          try {
+            await animatePropagation(fallbackResult);
+          } catch (animationError) {
+            console.error('Error animating fallback propagation:', animationError);
+            // Continue even if animation fails
+          }
+
+          if (onComplete) {
+            try {
+              onComplete(fallbackResult);
+            } catch (callbackError) {
+              console.error('Error in onComplete callback for fallback:', callbackError);
+            }
+          }
+        } else {
+          throw new Error('Fallback propagation returned null or undefined result');
         }
       } catch (fallbackError) {
         console.error('Fallback propagation also failed:', fallbackError);
+        toast.error('Propagation failed', {
+          description: 'Both primary and fallback propagation methods failed. Please try again later.'
+        });
+
+        // Call the onPropagationError callback if provided
+        if (onPropagationError) {
+          onPropagationError();
+        }
+
+        // Create a minimal fallback result to prevent UI errors
+        const minimalFallbackResult: NFTPropagationResult = {
+          messageId: `error-${Date.now()}`,
+          success: false,
+          chunksGenerated: 0,
+          chunksSent: 0,
+          recipientCount: 0,
+          timestamp: Date.now(),
+          merkleRoot: '',
+          nft: nft,
+          propagationSpeed: 0,
+          replicationFactor: 0,
+          receivingNodes: [],
+          propagationPath: []
+        };
+
+        setPropagationResult(minimalFallbackResult);
       }
     } finally {
       setIsAnimating(false);
@@ -174,34 +380,44 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
   };
 
   const animatePropagation = async (result: NFTPropagationResult) => {
-    if (!result.propagationPath) return;
+    if (!result || !result.propagationPath || result.propagationPath.length === 0) {
+      console.warn('Cannot animate propagation: invalid or empty propagation path');
+      return;
+    }
 
     // Show a toast to indicate animation is starting
     toast.info('Visualizing NFT propagation through the network...', {
       description: 'Watch as your NFT travels through the Monad network'
     });
 
-    // Animate through each step of the propagation path
-    for (let i = 0; i < result.propagationPath.length; i++) {
-      setCurrentStep(i);
-      // Wait for a delay based on propagation speed
-      await new Promise(resolve => setTimeout(resolve, result.propagationSpeed / result.propagationPath.length));
-    }
+    try {
+      // Animate through each step of the propagation path
+      for (let i = 0; i < result.propagationPath.length; i++) {
+        setCurrentStep(i);
+        // Wait for a delay based on propagation speed
+        const delay = result.propagationSpeed / Math.max(1, result.propagationPath.length);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
 
-    // Complete the animation
-    setCurrentStep(result.propagationPath.length);
+      // Complete the animation
+      setCurrentStep(result.propagationPath.length);
 
-    // Show a toast to indicate animation is complete
-    toast.success('NFT propagation complete!', {
-      description: 'Your NFT has successfully propagated through the network'
-    });
-
-    // If there's an evolution factor, prompt the user to check it out
-    if (result.evolutionFactor && result.evolutionFactor > 0) {
-      toast.info('Your NFT can now evolve!', {
-        description: 'Click the "Show Evolved NFT" button to see your evolved NFT',
-        duration: 5000
+      // Show a toast to indicate animation is complete
+      toast.success('NFT propagation complete!', {
+        description: 'Your NFT has successfully propagated through the network'
       });
+
+      // If there's an evolution factor, prompt the user to check it out
+      if (result.evolutionFactor && result.evolutionFactor > 0) {
+        toast.info('Your NFT can now evolve!', {
+          description: 'Click the "Show Evolved NFT" button to see your evolved NFT',
+          duration: 5000
+        });
+      }
+    } catch (error) {
+      console.error('Error during propagation animation:', error);
+      // Complete the animation anyway to avoid getting stuck
+      setCurrentStep(result.propagationPath.length);
     }
   };
 
@@ -432,7 +648,7 @@ const NFTPropagationVisualizer: React.FC<NFTPropagationVisualizerProps> = ({
             {propagationResult && (
               <div className="mb-4">
                 <h4 className="text-sm font-semibold mb-2">Propagation Metrics</h4>
-                <ExecutionMetrics
+                <PropagationMetrics
                   executionTime={propagationResult.propagationSpeed}
                   gasUsed={Math.floor(propagationResult.chunksGenerated * 1.5)}
                   parallelSpeedup={propagationResult.replicationFactor}

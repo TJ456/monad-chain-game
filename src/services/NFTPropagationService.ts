@@ -96,23 +96,36 @@ export class NFTPropagationService {
   public async propagateNFT(nft: MintedNFT, config?: Partial<RaptorCastConfig>): Promise<NFTPropagationResult> {
     try {
       this.ensureInitialized();
+      console.log('NFTPropagationService.propagateNFT called for NFT:', nft.tokenId);
 
       // Check if this NFT has already been propagated
       const existingPropagation = this.userPropagations.get(nft.tokenId);
       if (existingPropagation) {
-        console.log(`NFT ${nft.tokenId} has already been propagated`);
+        console.log(`NFT ${nft.tokenId} has already been propagated, returning existing result`);
         return existingPropagation;
       }
 
+      // Make sure RaptorCast service is initialized
+      if (!raptorCastService['isInitialized']) {
+        console.log('Initializing RaptorCast service...');
+        await raptorCastService.initialize();
+        console.log('RaptorCast service initialized successfully');
+      }
+
+      console.log('Propagating NFT through RaptorCast...');
       // Propagate the NFT through RaptorCast
       const result = await raptorCastService.propagateNFT(nft, config);
+      console.log('Propagation result:', result);
 
       // Store the propagation
       this.userPropagations.set(nft.tokenId, result);
+      console.log(`Stored propagation result for NFT ${nft.tokenId} in memory`);
 
       // Store in MonadDb
       try {
+        console.log('Recording propagation in MonadDb...');
         await this.recordPropagationInDb(result);
+        console.log('Successfully recorded propagation in MonadDb');
       } catch (dbError) {
         console.error('Error recording propagation in MonadDb:', dbError);
         // Continue even if DB recording fails
@@ -150,31 +163,49 @@ export class NFTPropagationService {
    */
   private async recordPropagationInDb(propagation: NFTPropagationResult): Promise<void> {
     try {
+      console.log(`Recording propagation for NFT ${propagation.nft.tokenId} in MonadDb...`);
+
       // Store the propagation data in MonadDb with a timestamp
+      const timestamp = Date.now();
       const propagationData = {
         ...propagation,
-        recordedAt: Date.now(),
-        blockchainStatus: 'pending' // Will be updated when confirmed on-chain
+        recordedAt: timestamp,
+        blockchainStatus: 'pending', // Will be updated when confirmed on-chain
+        lastUpdated: timestamp
       };
 
       // Store in MonadDb with proper namespacing for efficient retrieval
+      // Use both token ID and message ID in the key for uniqueness
+      const key = `user-propagation-${propagation.nft.tokenId}-${propagation.messageId}`;
+      console.log(`Using key: ${key} for MonadDb storage`);
+
       const merkleRoot = await monadDb.put(
-        `user-propagation-${propagation.nft.tokenId}`,
+        key,
         propagationData,
         'user-propagations'
       );
+      console.log(`Successfully stored propagation data with merkle root: ${merkleRoot}`);
 
       // Also store in a time-indexed collection for historical queries
+      const historyKey = `propagation-history-${timestamp}-${propagation.nft.tokenId}`;
       await monadDb.put(
-        `propagation-history-${Date.now()}`,
+        historyKey,
         {
+          key: historyKey, // Store the key for easier updates later
           tokenId: propagation.nft.tokenId,
           messageId: propagation.messageId,
           merkleRoot,
-          timestamp: Date.now()
+          timestamp,
+          name: propagation.nft.name,
+          replicationFactor: propagation.replicationFactor,
+          evolutionFactor: propagation.evolutionFactor,
+          receivingNodes: propagation.receivingNodes.length,
+          blockchainStatus: 'pending',
+          type: 'propagation'
         },
         'propagation-history'
       );
+      console.log(`Successfully stored propagation history entry with key: ${historyKey}`);
 
       console.log(`Recorded user propagation for NFT ${propagation.nft.tokenId} in MonadDb with merkle root: ${merkleRoot}`);
 
@@ -182,6 +213,7 @@ export class NFTPropagationService {
       this.submitPropagationToBlockchain(propagation, merkleRoot);
     } catch (error) {
       console.error('Error recording propagation in MonadDb:', error);
+      throw error; // Re-throw to allow caller to handle
     }
   }
 
@@ -256,13 +288,20 @@ export class NFTPropagationService {
       );
 
       // Also store in a time-indexed collection for historical queries
+      const historyKey = `evolution-history-${timestamp}-${originalTokenId}`;
       await monadDb.put(
-        `evolution-history-${timestamp}`,
+        historyKey,
         {
+          key: historyKey, // Store the key for easier updates later
           originalTokenId,
           evolvedTokenId: evolvedNFT.tokenId,
           merkleRoot,
-          timestamp
+          timestamp,
+          name: evolvedNFT.name,
+          originalName: this.userPropagations.get(originalTokenId)?.nft.name || 'Unknown',
+          evolutionFactor: this.userPropagations.get(originalTokenId)?.evolutionFactor || 0,
+          blockchainStatus: 'pending',
+          type: 'evolution'
         },
         'evolution-history'
       );
@@ -316,19 +355,62 @@ export class NFTPropagationService {
       // Simulate blockchain delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Generate a simulated transaction hash
+      const txHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const blockNumber = Math.floor(Date.now() / 1000) % 1000000; // Simulated block number
+      const timestamp = Date.now();
+
       // Update the propagation status in MonadDb
       await monadDb.put(
-        `user-propagation-${propagation.nft.tokenId}`,
+        `user-propagation-${propagation.nft.tokenId}-${propagation.messageId}`,
         {
           ...propagation,
           blockchainStatus: 'confirmed',
-          blockConfirmationTime: Date.now(),
-          blockNumber: Math.floor(Date.now() / 1000) % 1000000 // Simulated block number
+          blockConfirmationTime: timestamp,
+          blockNumber,
+          txHash,
+          merkleRoot
         },
         'user-propagations'
       );
 
-      console.log(`Propagation confirmed on Monad blockchain for NFT ${propagation.nft.tokenId}`);
+      // Also record the transaction in the blockchain history
+      await monadDb.put(
+        `blockchain-tx-${txHash}`,
+        {
+          txHash,
+          blockNumber,
+          timestamp,
+          messageId: propagation.messageId,
+          merkleRoot,
+          type: 'propagation',
+          tokenId: propagation.nft.tokenId,
+          status: 'confirmed'
+        },
+        'blockchain-history'
+      );
+
+      // Update the propagation history entry with blockchain data
+      const historyEntries = await monadDb.getAll<any>('propagation-history');
+      const historyEntry = historyEntries.find(entry =>
+        entry.messageId === propagation.messageId &&
+        entry.tokenId === propagation.nft.tokenId
+      );
+
+      if (historyEntry && historyEntry.key) {
+        await monadDb.put(
+          historyEntry.key,
+          {
+            ...historyEntry,
+            blockNumber,
+            txHash,
+            blockchainStatus: 'confirmed'
+          },
+          'propagation-history'
+        );
+      }
+
+      console.log(`Propagation confirmed on Monad blockchain for NFT ${propagation.nft.tokenId} with tx hash ${txHash}`);
     } catch (error) {
       console.error('Error submitting propagation to blockchain:', error);
     }
@@ -346,6 +428,11 @@ export class NFTPropagationService {
       // Simulate blockchain delay
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Generate a simulated transaction hash
+      const txHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const blockNumber = Math.floor(Date.now() / 1000) % 1000000; // Simulated block number
+      const timestamp = Date.now();
+
       // Update the evolution status in MonadDb
       await monadDb.put(
         `nft-evolution-${originalTokenId}`,
@@ -353,14 +440,48 @@ export class NFTPropagationService {
           originalTokenId,
           evolvedNFT,
           blockchainStatus: 'confirmed',
-          blockConfirmationTime: Date.now(),
-          blockNumber: Math.floor(Date.now() / 1000) % 1000000, // Simulated block number
+          blockConfirmationTime: timestamp,
+          blockNumber,
+          txHash,
           merkleRoot
         },
         'nft-evolutions'
       );
 
-      console.log(`Evolution confirmed on Monad blockchain for NFT ${originalTokenId}`);
+      // Also record the transaction in the blockchain history
+      await monadDb.put(
+        `blockchain-tx-${txHash}`,
+        {
+          txHash,
+          blockNumber,
+          timestamp,
+          type: 'evolution',
+          originalTokenId,
+          evolvedTokenId: evolvedNFT.tokenId,
+          merkleRoot,
+          status: 'confirmed'
+        },
+        'blockchain-history'
+      );
+
+      // Update the evolution history entry with blockchain data
+      const historyEntries = await monadDb.getAll<any>('evolution-history');
+      const historyEntry = historyEntries.find(entry => entry.originalTokenId === originalTokenId);
+
+      if (historyEntry && historyEntry.key) {
+        await monadDb.put(
+          historyEntry.key,
+          {
+            ...historyEntry,
+            blockNumber,
+            txHash,
+            blockchainStatus: 'confirmed'
+          },
+          'evolution-history'
+        );
+      }
+
+      console.log(`Evolution confirmed on Monad blockchain for NFT ${originalTokenId} with tx hash ${txHash}`);
     } catch (error) {
       console.error('Error submitting evolution to blockchain:', error);
     }

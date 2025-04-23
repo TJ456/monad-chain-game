@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { nftPropagationService } from '../services/NFTPropagationService';
 import { raptorCastService } from '../services/RaptorCastService';
+import { monadDb } from '../services/MonadDbService';
 import { Network, Clock, CheckCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -19,58 +20,75 @@ interface HistoryEntry {
   merkleRoot: string;
   blockNumber?: number;
   blockchainStatus?: 'pending' | 'confirmed';
+  txHash?: string;
+  evolvedTokenId?: number;
+  nftId?: number;
 }
 
 const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className = '' }) => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [verificationResults, setVerificationResults] = useState<Record<string, boolean>>({});
-  
+
   useEffect(() => {
     loadHistory();
   }, []);
-  
+
   const loadHistory = async () => {
     setIsLoading(true);
-    
+
     try {
+      // Get blockchain transaction history first
+      const blockchainHistory = await monadDb.getAll<any>('blockchain-history');
+      console.log('Blockchain history:', blockchainHistory);
+
       // Get propagation history
       const propagationHistory = await nftPropagationService.getPropagationHistory();
+      console.log('Propagation history:', propagationHistory);
       const propagationEntries = propagationHistory.map(entry => ({
         type: 'propagation' as const,
         timestamp: entry.timestamp,
         tokenId: entry.tokenId,
         messageId: entry.messageId,
         merkleRoot: entry.merkleRoot,
-        blockchainStatus: 'confirmed' // Assume confirmed for simplicity
+        blockchainStatus: entry.blockchainStatus || 'pending',
+        blockNumber: entry.blockNumber,
+        txHash: entry.txHash
       }));
-      
+
       // Get evolution history
       const evolutionHistory = await nftPropagationService.getEvolutionHistory();
+      console.log('Evolution history:', evolutionHistory);
       const evolutionEntries = evolutionHistory.map(entry => ({
         type: 'evolution' as const,
         timestamp: entry.timestamp,
         tokenId: entry.originalTokenId,
         evolvedTokenId: entry.evolvedTokenId,
         merkleRoot: entry.merkleRoot,
-        blockchainStatus: 'confirmed' // Assume confirmed for simplicity
+        blockchainStatus: entry.blockchainStatus || 'pending',
+        blockNumber: entry.blockNumber,
+        txHash: entry.txHash
       }));
-      
+
       // Get broadcast history
       const broadcastHistory = await raptorCastService.getBroadcastHistory();
+      console.log('Broadcast history:', broadcastHistory);
       const broadcastEntries = broadcastHistory.map(entry => ({
         type: 'broadcast' as const,
         timestamp: entry.timestamp,
         messageId: entry.messageId,
         merkleRoot: entry.merkleRoot,
         nftId: entry.nftId,
-        blockchainStatus: 'confirmed' // Assume confirmed for simplicity
+        blockchainStatus: entry.blockchainStatus || 'pending',
+        blockNumber: entry.blockNumber,
+        txHash: entry.txHash
       }));
-      
+
       // Combine and sort by timestamp (newest first)
       const combinedHistory = [...propagationEntries, ...evolutionEntries, ...broadcastEntries]
         .sort((a, b) => b.timestamp - a.timestamp);
-      
+
+      console.log('Combined history:', combinedHistory);
       setHistory(combinedHistory);
     } catch (error) {
       console.error('Error loading history:', error);
@@ -78,34 +96,34 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
       setIsLoading(false);
     }
   };
-  
+
   const verifyIntegrity = async (entry: HistoryEntry) => {
     try {
       let result = false;
-      
+
       if (entry.type === 'propagation' && entry.tokenId) {
         result = await nftPropagationService.verifyPropagationIntegrity(entry.tokenId);
       } else if (entry.type === 'broadcast' && entry.messageId) {
         result = await raptorCastService.verifyBroadcastIntegrity(entry.messageId);
       }
-      
+
       // Update verification results
       setVerificationResults(prev => ({
         ...prev,
         [entry.merkleRoot]: result
       }));
-      
+
       return result;
     } catch (error) {
       console.error('Error verifying integrity:', error);
       return false;
     }
   };
-  
+
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
   };
-  
+
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'propagation':
@@ -118,7 +136,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
         return type;
     }
   };
-  
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'propagation':
@@ -131,7 +149,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
         return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
     }
   };
-  
+
   return (
     <div className={`space-y-4 ${className}`}>
       <div className="flex justify-between items-center mb-4">
@@ -139,7 +157,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
           <Network className="w-5 h-5 mr-2 text-blue-400" />
           MonadDb Blockchain History
         </h3>
-        
+
         <Button
           size="sm"
           variant="outline"
@@ -150,7 +168,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
           Refresh
         </Button>
       </div>
-      
+
       {isLoading ? (
         <Card className="p-8 text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-2" />
@@ -169,21 +187,21 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
                   <Badge className={`mr-3 ${getTypeColor(entry.type)}`}>
                     {getTypeLabel(entry.type)}
                   </Badge>
-                  
+
                   <div>
                     <div className="text-sm text-white">
                       {entry.type === 'propagation' && `NFT #${entry.tokenId} Propagated`}
                       {entry.type === 'evolution' && `NFT #${entry.tokenId} Evolved`}
                       {entry.type === 'broadcast' && `Message ${entry.messageId?.substring(0, 8)}... Broadcast`}
                     </div>
-                    
+
                     <div className="text-xs text-gray-400 flex items-center mt-1">
                       <Clock className="w-3 h-3 mr-1" />
                       {formatTimestamp(entry.timestamp)}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-2 md:mt-0 flex items-center">
                   {entry.blockchainStatus && (
                     <TooltipProvider>
@@ -202,15 +220,15 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
                         </TooltipTrigger>
                         <TooltipContent side="bottom">
                           <p className="text-xs">
-                            {entry.blockchainStatus === 'confirmed' 
-                              ? 'Transaction confirmed on Monad blockchain' 
+                            {entry.blockchainStatus === 'confirmed'
+                              ? 'Transaction confirmed on Monad blockchain'
                               : 'Transaction pending confirmation'}
                           </p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  
+
                   <Button
                     size="sm"
                     variant="ghost"
@@ -231,7 +249,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
                       </span>
                     )}
                   </Button>
-                  
+
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -250,30 +268,42 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
                   </TooltipProvider>
                 </div>
               </div>
-              
+
               <div className="mt-2 pt-2 border-t border-slate-700/30">
                 <div className="text-xs text-gray-500 flex flex-wrap">
                   <span className="mr-4">
                     <span className="text-gray-400">Merkle Root:</span> {entry.merkleRoot.substring(0, 16)}...
                   </span>
-                  
+
+                  {entry.txHash && (
+                    <span className="mr-4">
+                      <span className="text-gray-400">Tx Hash:</span> {entry.txHash.substring(0, 16)}...
+                    </span>
+                  )}
+
+                  {entry.blockNumber && (
+                    <span className="mr-4">
+                      <span className="text-gray-400">Block:</span> {entry.blockNumber.toLocaleString()}
+                    </span>
+                  )}
+
                   {entry.type === 'propagation' && entry.tokenId && (
                     <span className="mr-4">
                       <span className="text-gray-400">Token ID:</span> {entry.tokenId}
                     </span>
                   )}
-                  
+
                   {entry.type === 'evolution' && entry.tokenId && (
                     <>
                       <span className="mr-4">
                         <span className="text-gray-400">Original Token:</span> {entry.tokenId}
                       </span>
                       <span className="mr-4">
-                        <span className="text-gray-400">Evolved Token:</span> {(entry as any).evolvedTokenId}
+                        <span className="text-gray-400">Evolved Token:</span> {entry.evolvedTokenId}
                       </span>
                     </>
                   )}
-                  
+
                   {entry.type === 'broadcast' && entry.messageId && (
                     <span className="mr-4">
                       <span className="text-gray-400">Message ID:</span> {entry.messageId.substring(0, 16)}...

@@ -605,6 +605,7 @@ export class RaptorCastService {
   public async propagateNFT(nft: MintedNFT, config?: Partial<RaptorCastConfig>): Promise<NFTPropagationResult> {
     try {
       this.ensureInitialized();
+      console.log('RaptorCastService.propagateNFT called for NFT:', nft.tokenId);
 
       // Check if this NFT has already been propagated
       const existingPropagations = Array.from(this.nftPropagations.values());
@@ -613,6 +614,8 @@ export class RaptorCastService {
         console.log(`NFT ${nft.tokenId} has already been propagated, returning existing result`);
         return existingPropagation;
       }
+
+      console.log('No existing propagation found, creating new propagation...');
 
       // Serialize the NFT to a buffer for broadcasting
       const nftData = JSON.stringify(nft);
@@ -731,13 +734,76 @@ export class RaptorCastService {
    */
   private async recordNFTPropagationInDb(propagation: NFTPropagationResult): Promise<void> {
     try {
-      await monadDb.put(
-        `nft-propagation-${propagation.messageId}`,
-        propagation,
+      console.log(`Recording NFT propagation ${propagation.messageId} in MonadDb...`);
+
+      // Store the propagation with a unique key based on both message ID and token ID
+      const key = `nft-propagation-${propagation.messageId}-${propagation.nft.tokenId}`;
+      const timestamp = Date.now();
+
+      // Store in the nft-propagations collection
+      const merkleRoot = await monadDb.put(
+        key,
+        {
+          ...propagation,
+          recordedAt: timestamp,
+          lastUpdated: timestamp,
+          blockchainStatus: 'pending' // Will be updated when confirmed on-chain
+        },
         'nft-propagations'
       );
 
-      console.log(`Recorded NFT propagation ${propagation.messageId} in MonadDb`);
+      // Also store a reference by token ID for easier lookup
+      await monadDb.put(
+        `nft-by-token-${propagation.nft.tokenId}`,
+        {
+          messageId: propagation.messageId,
+          merkleRoot,
+          timestamp: timestamp,
+          tokenId: propagation.nft.tokenId,
+          name: propagation.nft.name,
+          quality: propagation.nft.quality,
+          replicationFactor: propagation.replicationFactor,
+          evolutionFactor: propagation.evolutionFactor || 0
+        },
+        'nft-token-index'
+      );
+
+      // Store in a time-indexed collection for historical queries
+      await monadDb.put(
+        `propagation-history-${timestamp}-${propagation.nft.tokenId}`,
+        {
+          messageId: propagation.messageId,
+          merkleRoot,
+          timestamp,
+          tokenId: propagation.nft.tokenId,
+          name: propagation.nft.name,
+          receivingNodes: propagation.receivingNodes.length,
+          replicationFactor: propagation.replicationFactor,
+          evolutionFactor: propagation.evolutionFactor || 0
+        },
+        'propagation-history'
+      );
+
+      console.log(`Successfully recorded NFT propagation ${propagation.messageId} in MonadDb with merkle root: ${merkleRoot}`);
+
+      // Also store in localStorage for persistence across page refreshes
+      try {
+        // Get existing propagations from localStorage
+        const existingPropagationsJson = localStorage.getItem('propagated-nfts') || '{}';
+        const existingPropagations = JSON.parse(existingPropagationsJson);
+
+        // Add this propagation
+        existingPropagations[propagation.nft.tokenId] = propagation;
+
+        // Save back to localStorage
+        localStorage.setItem('propagated-nfts', JSON.stringify(existingPropagations));
+        console.log('Updated propagated NFTs in localStorage');
+      } catch (storageError) {
+        console.error('Error updating propagated NFTs in localStorage:', storageError);
+      }
+
+      // Submit to blockchain (simulated)
+      this.submitBroadcastToBlockchain(propagation, merkleRoot);
     } catch (error) {
       console.error('Failed to record NFT propagation in MonadDb:', error);
     }
@@ -755,6 +821,14 @@ export class RaptorCastService {
    */
   public getNFTPropagation(messageId: string): NFTPropagationResult | null {
     return this.nftPropagations.get(messageId) || null;
+  }
+
+  /**
+   * Get all NFT propagations
+   * @returns Array of all NFT propagation results
+   */
+  public getAllNFTPropagations(): NFTPropagationResult[] {
+    return Array.from(this.nftPropagations.values());
   }
 
   /**
@@ -820,20 +894,59 @@ export class RaptorCastService {
       // Simulate blockchain delay
       await new Promise(resolve => setTimeout(resolve, 1500));
 
+      // Generate a simulated transaction hash
+      const txHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const blockNumber = Math.floor(Date.now() / 1000) % 1000000; // Simulated block number
+      const timestamp = Date.now();
+
       // Update the broadcast status in MonadDb
       await monadDb.put(
         `raptorcast-broadcast-${result.messageId}`,
         {
           result,
           blockchainStatus: 'confirmed',
-          blockConfirmationTime: Date.now(),
-          blockNumber: Math.floor(Date.now() / 1000) % 1000000, // Simulated block number
-          merkleRoot
+          blockConfirmationTime: timestamp,
+          blockNumber,
+          merkleRoot,
+          txHash
         },
         'raptorcast'
       );
 
-      console.log(`Broadcast confirmed on Monad blockchain for message ${result.messageId}`);
+      // Also record the transaction in the blockchain history
+      await monadDb.put(
+        `blockchain-tx-${txHash}`,
+        {
+          txHash,
+          blockNumber,
+          timestamp,
+          messageId: result.messageId,
+          merkleRoot,
+          type: 'broadcast',
+          nftId: result.nftId,
+          status: 'confirmed'
+        },
+        'blockchain-history'
+      );
+
+      // Update the broadcast history entry with blockchain data
+      const historyEntries = await monadDb.getAll<any>('broadcast-history');
+      const historyEntry = historyEntries.find(entry => entry.messageId === result.messageId);
+
+      if (historyEntry && historyEntry.key) {
+        await monadDb.put(
+          historyEntry.key,
+          {
+            ...historyEntry,
+            blockNumber,
+            txHash,
+            blockchainStatus: 'confirmed'
+          },
+          'broadcast-history'
+        );
+      }
+
+      console.log(`Broadcast confirmed on Monad blockchain for message ${result.messageId} with tx hash ${txHash}`);
     } catch (error) {
       console.error('Error submitting broadcast to blockchain:', error);
     }
