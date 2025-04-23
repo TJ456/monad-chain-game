@@ -40,7 +40,7 @@ By combining these technologies, we've created a game that not only demonstrates
 `404 NOT FOUND1`
 
 ### Team Members:
-- Tanmay Joddar (GitHub: @TJ 456 / Role: Lead Developer & Blockchain Architect Smart Contract Engineer & Game Mechanics Designer)
+- Tanmay Joddar (GitHub: @TJ456 / Role: Lead Developer & Blockchain Architect Smart Contract Engineer & Game Mechanics Designer)
 - Sruti Gupta (GitHub: @SrutiGupta / Role:UI/UX,FRONTEND )
 - Priya Sharma (GitHub: @Aritra203 / Role: Tester and Backend Developer and Blockchain Architect Smart Contract Engineer)
 
