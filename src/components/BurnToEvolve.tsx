@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import GameCard from './GameCard';
-import { Card as GameCardType, CardRarity, CardType, CardStatus } from '@/types/game';
+import { Card as GameCardType, CardRarity, CardStatus } from '@/types/game';
 import { currentPlayer } from '@/data/gameData';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Flame, Sparkles, ArrowRight, Check, AlertTriangle, Zap, Shield, Wand2 } from "lucide-react";
+import { Sparkles, Zap, Shield, Wand2, Flame, Eye } from "lucide-react";
 
 const BurnToEvolve: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -21,8 +21,11 @@ const BurnToEvolve: React.FC = () => {
   const [playerDeck, setPlayerDeck] = useState<GameCardType[]>(currentPlayer.cards);
   const [playerMonad, setPlayerMonad] = useState(currentPlayer.monad);
   const [showInventoryDialog, setShowInventoryDialog] = useState(false);
+  const [showBurntCardsDialog, setShowBurntCardsDialog] = useState(false);
+  const [showUpdatedInventoryDialog, setShowUpdatedInventoryDialog] = useState(false);
   const [potentialEvolvedCard, setPotentialEvolvedCard] = useState<GameCardType | null>(null);
   const [showPreviewNotification, setShowPreviewNotification] = useState(false);
+  // We'll use playerDeck to track burnt cards instead of a separate state
 
   // State for custom card attributes
   const [customCardName, setCustomCardName] = useState<string>("");
@@ -185,7 +188,6 @@ const BurnToEvolve: React.FC = () => {
       // Calculate base stats from selected cards
       const totalAttack = selectedCards.reduce((sum, card) => sum + (card.attack || 0), 0);
       const totalDefense = selectedCards.reduce((sum, card) => sum + (card.defense || 0), 0);
-      const avgMana = selectedCards.reduce((sum, card) => sum + card.mana, 0) / 2;
       const isRare = selectedCards.some(card => card.rarity === CardRarity.RARE);
       const isEpic = selectedCards.some(card => card.rarity === CardRarity.EPIC);
 
@@ -231,6 +233,8 @@ const BurnToEvolve: React.FC = () => {
     });
 
     setTimeout(() => {
+      // The burnt cards will be tracked in playerDeck with status=BURNT
+
       // Mark the selected cards as burnt instead of removing them
       const updatedDeck = playerDeck.map(card => {
         if (selectedCards.some(c => c.id === card.id)) {
@@ -281,6 +285,36 @@ const BurnToEvolve: React.FC = () => {
           console.error('Failed to save cards to localStorage:', error);
         }
 
+        // Show a toast with option to view updated inventory
+        toast("Card Evolution Complete", {
+          description: (
+            <div className="space-y-2">
+              <p>Your new card has been added to your inventory</p>
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowBurntCardsDialog(true)}
+                >
+                  <Flame className="h-3 w-3 mr-1 text-orange-400" />
+                  View Burnt Cards
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowUpdatedInventoryDialog(true)}
+                >
+                  <Eye className="h-3 w-3 mr-1 text-blue-400" />
+                  View Inventory
+                </Button>
+              </div>
+            </div>
+          ),
+          duration: 8000
+        });
+
         setStep(2);
         setIsProcessing(false);
       }, 1000);
@@ -307,6 +341,38 @@ const BurnToEvolve: React.FC = () => {
         id: "claim-evolve",
         description: `Card permanently added to your collection`
       });
+
+      // Show a toast with option to view updated inventory
+      setTimeout(() => {
+        toast("View Your Collection", {
+          description: (
+            <div className="space-y-2">
+              <p>Would you like to see your updated inventory?</p>
+              <div className="flex justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowBurntCardsDialog(true)}
+                >
+                  <Flame className="h-3 w-3 mr-1 text-orange-400" />
+                  View Burnt Cards
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setShowUpdatedInventoryDialog(true)}
+                >
+                  <Eye className="h-3 w-3 mr-1 text-blue-400" />
+                  View Inventory
+                </Button>
+              </div>
+            </div>
+          ),
+          duration: 8000
+        });
+      }, 1000);
 
       setStep(3);
       setIsProcessing(false);
@@ -894,6 +960,104 @@ const BurnToEvolve: React.FC = () => {
       <div className="mt-4 text-center text-xs text-gray-500 relative z-10">
         Powered by Monad's deflationary NFT mechanics
       </div>
+
+      {/* Burnt Cards Dialog */}
+      <Dialog open={showBurntCardsDialog} onOpenChange={setShowBurntCardsDialog}>
+        <DialogContent className="bg-gradient-to-br from-gray-900 to-gray-950 border-orange-500/40 text-white max-w-4xl max-h-[80vh] overflow-y-auto shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-orange-400 flex items-center">
+              <Flame className="h-6 w-6 mr-2 text-orange-500" />
+              Burnt Cards Collection
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              These cards have been sacrificed to create more powerful cards but remain in your collection history.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 my-6">
+            {playerDeck.filter(card => card.status === CardStatus.BURNT).map((card) => (
+              <div key={card.id} className="relative">
+                <div className="absolute inset-0 bg-black/60 rounded-lg z-10 flex items-center justify-center">
+                  <Badge className="bg-orange-600 text-white px-3 py-1 text-xs">BURNT</Badge>
+                </div>
+                <div className="opacity-70">
+                  <GameCard card={card} showDetails={true} />
+                </div>
+                {card.evolvedInto && (
+                  <div className="mt-2 p-2 bg-black/40 rounded-md">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-400">Evolved into:</span>
+                      <span className="text-xs text-orange-400">
+                        {playerDeck.find(c => c.id === card.evolvedInto)?.name || "Unknown Card"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700"
+              onClick={() => setShowBurntCardsDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Updated Inventory Dialog */}
+      <Dialog open={showUpdatedInventoryDialog} onOpenChange={setShowUpdatedInventoryDialog}>
+        <DialogContent className="bg-gradient-to-br from-gray-900 to-gray-950 border-blue-500/40 text-white max-w-4xl max-h-[80vh] overflow-y-auto shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-blue-400 flex items-center">
+              <Eye className="h-6 w-6 mr-2 text-blue-500" />
+              Your Updated Inventory
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Your collection after the evolution process.
+            </DialogDescription>
+          </DialogHeader>
+
+          {potentialEvolvedCard && (
+            <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-500/30 mb-4">
+              <h3 className="text-blue-400 font-medium mb-2">Newly Created Card</h3>
+              <div className="flex justify-center">
+                <div className="transform hover:scale-105 transition-all duration-500 max-w-[200px]">
+                  <GameCard card={potentialEvolvedCard} showDetails={true} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 my-6">
+            {playerDeck.filter(card => card.status === CardStatus.ACTIVE).map((card) => (
+              <div
+                key={card.id}
+                className={`relative ${card.id === potentialEvolvedCard?.id ? 'ring-2 ring-blue-500 scale-105' : ''}`}
+              >
+                <GameCard card={card} showDetails={true} />
+                {card.id === potentialEvolvedCard?.id && (
+                  <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-md shadow-md z-20">
+                    NEW
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              onClick={() => setShowUpdatedInventoryDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
