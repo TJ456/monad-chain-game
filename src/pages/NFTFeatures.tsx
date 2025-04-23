@@ -65,7 +65,7 @@ const NFTFeatures: React.FC = () => {
     }
   }, [playerNFTs, evolvedNFTs, showOnlyEvolved]);
 
-  // Load evolved NFTs from localStorage
+  // Load evolved NFTs and minted NFTs from localStorage
   useEffect(() => {
     try {
       // Load evolved NFT IDs
@@ -90,6 +90,43 @@ const NFTFeatures: React.FC = () => {
 
       if (loadedEvolutions.size > 0) {
         setEvolvedNFTs(loadedEvolutions);
+      }
+
+      // Load minted NFTs
+      try {
+        const mintedNFTsJson = localStorage.getItem('minted-nfts');
+        if (mintedNFTsJson) {
+          const mintedNFTs = JSON.parse(mintedNFTsJson);
+          if (Array.isArray(mintedNFTs) && mintedNFTs.length > 0) {
+            console.log('Loaded minted NFTs from localStorage:', mintedNFTs);
+            setPlayerNFTs(mintedNFTs);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading minted NFTs from localStorage:', e);
+      }
+
+      // Load propagated NFTs
+      try {
+        const propagatedNFTsJson = localStorage.getItem('propagated-nfts');
+        if (propagatedNFTsJson) {
+          const propagatedNFTsObj = JSON.parse(propagatedNFTsJson);
+          if (propagatedNFTsObj && typeof propagatedNFTsObj === 'object') {
+            console.log('Loaded propagated NFTs from localStorage:', propagatedNFTsObj);
+            const loadedPropagations = new Map<number, NFTPropagationResult>();
+
+            // Convert object to Map
+            Object.entries(propagatedNFTsObj).forEach(([key, value]) => {
+              loadedPropagations.set(parseInt(key), value as NFTPropagationResult);
+            });
+
+            if (loadedPropagations.size > 0) {
+              setPropagatedNFTs(loadedPropagations);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error loading propagated NFTs from localStorage:', e);
       }
     } catch (error) {
       console.error('Error loading evolved NFTs from localStorage:', error);
@@ -250,10 +287,24 @@ const NFTFeatures: React.FC = () => {
   };
 
   const handleNFTPropagationComplete = (result: NFTPropagationResult) => {
+    console.log('NFT propagation complete:', result);
+
     // Update propagated NFTs
     const updatedPropagations = new Map(propagatedNFTs);
     updatedPropagations.set(result.nft.tokenId, result);
     setPropagatedNFTs(updatedPropagations);
+
+    // Store propagation result in localStorage for persistence
+    try {
+      const propagationsToStore: Record<number, any> = {};
+      updatedPropagations.forEach((value, key) => {
+        propagationsToStore[key] = value;
+      });
+      localStorage.setItem('propagated-nfts', JSON.stringify(propagationsToStore));
+      console.log('Saved propagated NFTs to localStorage');
+    } catch (storageError) {
+      console.error('Error saving propagated NFTs to localStorage:', storageError);
+    }
 
     toast.success('NFT propagation complete!', {
       description: `Your NFT has been propagated through ${result.receivingNodes.length} nodes on the Monad network`
@@ -306,9 +357,19 @@ const NFTFeatures: React.FC = () => {
 
       // Mint a new NFT
       const newNFT = await monadNFTService.mintSurpriseToken();
+      console.log('Minted new NFT:', newNFT);
 
       // Add to player's NFTs
-      setPlayerNFTs([...playerNFTs, newNFT]);
+      const updatedNFTs = [...playerNFTs, newNFT];
+      setPlayerNFTs(updatedNFTs);
+
+      // Store in localStorage for persistence
+      try {
+        localStorage.setItem('minted-nfts', JSON.stringify(updatedNFTs));
+        console.log('Saved minted NFTs to localStorage');
+      } catch (storageError) {
+        console.error('Error saving minted NFTs to localStorage:', storageError);
+      }
 
       toast.success('New NFT minted!', {
         id: toastId,

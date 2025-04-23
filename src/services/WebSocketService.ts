@@ -14,7 +14,11 @@ export enum WebSocketMessageType {
   TRANSACTION_UPDATE = 'transaction_update',
   ERROR = 'error',
   PING = 'ping',
-  PONG = 'pong'
+  PONG = 'pong',
+  // Chat message types
+  CHAT_MESSAGE = 'chat_message',
+  CHAT_JOIN = 'chat_join',
+  CHAT_LEAVE = 'chat_leave'
 }
 
 export interface WebSocketMessage {
@@ -387,6 +391,71 @@ class WebSocketService {
     });
   }
 
+  /**
+   * Send a chat message to the current room
+   * @param content The message content
+   * @param sender The sender's username
+   */
+  public sendChatMessage(content: string, sender: string): void {
+    if (!this.roomCode) {
+      console.error('Cannot send chat message: not in a room');
+      return;
+    }
+
+    this.sendMessage({
+      type: WebSocketMessageType.CHAT_MESSAGE,
+      payload: {
+        content,
+        sender,
+        roomCode: this.roomCode
+      },
+      timestamp: Date.now(),
+      roomCode: this.roomCode
+    });
+  }
+
+  /**
+   * Notify that a user has joined the chat
+   * @param username The username of the user who joined
+   */
+  public sendChatJoin(username: string): void {
+    if (!this.roomCode) {
+      console.error('Cannot send chat join notification: not in a room');
+      return;
+    }
+
+    this.sendMessage({
+      type: WebSocketMessageType.CHAT_JOIN,
+      payload: {
+        username,
+        roomCode: this.roomCode
+      },
+      timestamp: Date.now(),
+      roomCode: this.roomCode
+    });
+  }
+
+  /**
+   * Notify that a user has left the chat
+   * @param username The username of the user who left
+   */
+  public sendChatLeave(username: string): void {
+    if (!this.roomCode) {
+      console.error('Cannot send chat leave notification: not in a room');
+      return;
+    }
+
+    this.sendMessage({
+      type: WebSocketMessageType.CHAT_LEAVE,
+      payload: {
+        username,
+        roomCode: this.roomCode
+      },
+      timestamp: Date.now(),
+      roomCode: this.roomCode
+    });
+  }
+
   public requestSync(): void {
     if (!this.roomCode) {
       console.error('Cannot request sync: not in a room');
@@ -418,6 +487,14 @@ class WebSocketService {
 
   public addMessageListener(listener: (message: WebSocketMessage) => void): void {
     this.messageListeners.push(listener);
+  }
+
+  /**
+   * Check if the WebSocket is currently connected
+   * @returns true if connected, false otherwise
+   */
+  public isConnected(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
   }
 
   public removeMessageListener(listener: (message: WebSocketMessage) => void): void {
@@ -545,6 +622,21 @@ class WebSocketService {
 
       case WebSocketMessageType.PONG:
         // Handle pong (latency calculation is done in onmessage)
+        break;
+
+      case WebSocketMessageType.CHAT_MESSAGE:
+        // Chat messages are handled by the listeners
+        console.log(`Received chat message from ${message.payload.sender}: ${message.payload.content}`);
+        break;
+
+      case WebSocketMessageType.CHAT_JOIN:
+        // User joined chat notification
+        console.log(`User joined chat: ${message.payload.username}`);
+        break;
+
+      case WebSocketMessageType.CHAT_LEAVE:
+        // User left chat notification
+        console.log(`User left chat: ${message.payload.username}`);
         break;
     }
 
