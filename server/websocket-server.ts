@@ -14,7 +14,11 @@ enum WebSocketMessageType {
   TRANSACTION_UPDATE = 'transaction_update',
   ERROR = 'error',
   PING = 'ping',
-  PONG = 'pong'
+  PONG = 'pong',
+  // Chat message types
+  CHAT_MESSAGE = 'chat_message',
+  CHAT_JOIN = 'chat_join',
+  CHAT_LEAVE = 'chat_leave'
 }
 
 interface WebSocketMessage {
@@ -140,6 +144,18 @@ class GameWebSocketServer {
 
       case WebSocketMessageType.PING:
         this.handlePingMessage(clientId, message);
+        break;
+
+      case WebSocketMessageType.CHAT_MESSAGE:
+        this.handleChatMessage(clientId, message);
+        break;
+
+      case WebSocketMessageType.CHAT_JOIN:
+        this.handleChatJoin(clientId, message);
+        break;
+
+      case WebSocketMessageType.CHAT_LEAVE:
+        this.handleChatLeave(clientId, message);
         break;
 
       default:
@@ -329,6 +345,89 @@ class GameWebSocketServer {
     });
   }
 
+  private handleChatMessage(clientId: string, message: WebSocketMessage): void {
+    const client = this.clients.get(clientId);
+    if (!client || !client.roomCode) {
+      this.sendErrorMessage(clientId, 'Not in a room');
+      return;
+    }
+
+    const { content, sender } = message.payload;
+    if (!content || !sender) {
+      this.sendErrorMessage(clientId, 'Invalid chat message format');
+      return;
+    }
+
+    console.log(`Chat message in room ${client.roomCode} from ${sender}: ${content}`);
+
+    // Broadcast the chat message to all clients in the room
+    this.broadcastToRoom(client.roomCode, {
+      type: WebSocketMessageType.CHAT_MESSAGE,
+      payload: {
+        content,
+        sender,
+        roomCode: client.roomCode
+      },
+      timestamp: Date.now(),
+      sender,
+      roomCode: client.roomCode
+    });
+  }
+
+  private handleChatJoin(clientId: string, message: WebSocketMessage): void {
+    const client = this.clients.get(clientId);
+    if (!client || !client.roomCode) {
+      this.sendErrorMessage(clientId, 'Not in a room');
+      return;
+    }
+
+    const { username } = message.payload;
+    if (!username) {
+      this.sendErrorMessage(clientId, 'Username is required');
+      return;
+    }
+
+    console.log(`User ${username} joined chat in room ${client.roomCode}`);
+
+    // Broadcast the join notification to all clients in the room
+    this.broadcastToRoom(client.roomCode, {
+      type: WebSocketMessageType.CHAT_JOIN,
+      payload: {
+        username,
+        roomCode: client.roomCode
+      },
+      timestamp: Date.now(),
+      roomCode: client.roomCode
+    });
+  }
+
+  private handleChatLeave(clientId: string, message: WebSocketMessage): void {
+    const client = this.clients.get(clientId);
+    if (!client || !client.roomCode) {
+      // Client might already be disconnected, so no need for error
+      return;
+    }
+
+    const { username } = message.payload;
+    if (!username) {
+      this.sendErrorMessage(clientId, 'Username is required');
+      return;
+    }
+
+    console.log(`User ${username} left chat in room ${client.roomCode}`);
+
+    // Broadcast the leave notification to all clients in the room
+    this.broadcastToRoom(client.roomCode, {
+      type: WebSocketMessageType.CHAT_LEAVE,
+      payload: {
+        username,
+        roomCode: client.roomCode
+      },
+      timestamp: Date.now(),
+      roomCode: client.roomCode
+    });
+  }
+
   private handleDisconnect(clientId: string): void {
     const client = this.clients.get(clientId);
     if (!client) return;
@@ -350,6 +449,20 @@ class GameWebSocketServer {
 
     const room = this.rooms.get(roomCode);
     if (room) {
+      // Send chat leave notification if we have a userId
+      if (client.userId && client.userId !== 'anonymous') {
+        // Broadcast chat leave notification
+        this.broadcastToRoom(roomCode, {
+          type: WebSocketMessageType.CHAT_LEAVE,
+          payload: {
+            username: client.userId,
+            roomCode
+          },
+          timestamp: Date.now(),
+          roomCode
+        });
+      }
+
       // Remove client from room
       room.clients.delete(clientId);
       console.log(`Client ${clientId} left room ${roomCode}`);
