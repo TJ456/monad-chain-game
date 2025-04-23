@@ -330,6 +330,106 @@ VITE_ENABLE_PARALLEL_EXECUTION=true
 
 ---
 
+## 🔄 Prototype Workflow
+
+The following flowchart illustrates the complete user journey and system architecture of our MONAD Chain Game prototype:
+
+```mermaid
+flowchart TD
+    %% Main user journey
+    subgraph "User Journey"
+        direction TB
+        A[Player Starts Game] --> B{Has Wallet?}
+        B -->|No| C[Create Wallet]
+        B -->|Yes| D[Connect Wallet]
+        C --> D
+        D --> E[Enter Game Lobby]
+        E --> F{Game Mode}
+
+        F -->|Single Player| G[AI Battle]
+        F -->|Tournament| H[Join Tournament]
+        F -->|Marketplace| I[Browse NFT Cards]
+
+        G --> J[Earn Shards]
+        H --> K[Win Tournament]
+        I --> L[Purchase/Trade Cards]
+
+        J --> M[Redeem for NFTs]
+        K --> N[Claim Prize Pool]
+        L --> O[Compose/Evolve Cards]
+
+        M --> P[Build Collection]
+        N --> P
+        O --> P
+    end
+
+    %% Technical implementation
+    subgraph "MONAD Technology Stack"
+        direction TB
+        AA[Game Action] --> BB[MONAD Blockchain]
+
+        BB --> CC1[Parallel Execution]
+        BB --> CC2[StateSync]
+        BB --> CC3[RaptorCast]
+        BB --> CC4[PBFT Consensus]
+
+        CC1 --> DD[Game State Update]
+        CC2 --> DD
+        CC3 --> EE[NFT Propagation]
+        CC4 --> FF[Transaction Finality]
+
+        DD --> GG[State Verification]
+        EE --> GG
+        FF --> GG
+
+        GG --> HH[On-chain Settlement]
+    end
+
+    %% Rural impact
+    subgraph "Rural Impact"
+        direction TB
+        AAA[Low-Bandwidth Access] --> BBB[Digital Asset Ownership]
+        BBB --> CCC[Economic Opportunities]
+        CCC --> DDD[Financial Inclusion]
+    end
+
+    %% Connections between sections
+    P -.-> AA
+    HH -.-> AAA
+
+    %% Styling
+    classDef userJourney fill:#3a0ca3,stroke:#4cc9f0,color:#fff,stroke-width:2px;
+    classDef monadTech fill:#7209b7,stroke:#4cc9f0,color:#fff;
+    classDef ruralImpact fill:#f72585,stroke:#4cc9f0,color:#fff;
+    classDef highlight fill:#4361ee,stroke:#4cc9f0,color:#fff,stroke-width:3px;
+
+    class A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P userJourney;
+    class AA,BB,CC1,CC2,CC3,CC4,DD,EE,FF,GG,HH monadTech;
+    class AAA,BBB,CCC,DDD ruralImpact;
+    class A,BB,CC1,CC2,CC3,CC4,DDD highlight;
+```
+
+### Key Takeaways
+
+<div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px;">
+  <div style="flex: 1; min-width: 300px; background-color: rgba(58, 12, 163, 0.1); border-left: 4px solid #3a0ca3; padding: 15px; border-radius: 5px;">
+    <h4 style="color: #3a0ca3; margin-top: 0;">⚡ Revolutionary Performance</h4>
+    <p>50-100x faster gameplay than traditional blockchain games with sub-second finality and parallel execution of up to 32 operations per transaction.</p>
+  </div>
+
+  <div style="flex: 1; min-width: 300px; background-color: rgba(114, 9, 183, 0.1); border-left: 4px solid #7209b7; padding: 15px; border-radius: 5px;">
+    <h4 style="color: #7209b7; margin-top: 0;">🔄 Optimized for Low Connectivity</h4>
+    <p>95% reduction in data transfer through StateSync technology, making the game playable on 2G networks with bandwidth as low as 1 Mbps.</p>
+  </div>
+
+  <div style="flex: 1; min-width: 300px; background-color: rgba(247, 37, 133, 0.1); border-left: 4px solid #f72585; padding: 15px; border-radius: 5px;">
+    <h4 style="color: #f72585; margin-top: 0;">💡 Rural Economic Impact</h4>
+    <p>Creating new economic opportunities in underserved communities through accessible blockchain gaming, NFT ownership, and digital asset trading.</p>
+  </div>
+</div>
+
+---
+
 ## 🏁 Final Words
 
 MONAD Chain Game represents the future of blockchain gaming, demonstrating how MONAD's revolutionary technology can create experiences that are not just technically impressive but genuinely fun and accessible. By leveraging parallel execution, StateSync, RaptorCast, and other advanced features, we've built a game that performs at speeds previously thought impossible for blockchain applications.
