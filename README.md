@@ -93,8 +93,7 @@ By combining these technologies, we've created a game that not only demonstrates
 - **Zero-Knowledge Proofs**: Verify game moves without revealing player strategy, reducing gas costs by up to 94%
 - **Erasure Coding**: Data redundancy technique used in RaptorCast to ensure 99.9% reliability even with 40% node failures
 - **Chain Reaction System**: Custom implementation leveraging MONAD's parallel execution for cascading card effects
-- **Composable NFTs**: On-chain evolution and combination of NFTs with verifiable lineage through Merkle proofs
-
+- **Composable NFTs**: On-chain evolution and combination of NFTs with verifiable lineage through Merkle proofs..
 ### Data Flow Architecture:
 ```mermaid
 graph TD
