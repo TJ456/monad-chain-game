@@ -12,6 +12,12 @@ export enum CardType {
 }
 
 // Enhanced Card interface with more Monad-specific properties
+export enum CardStatus {
+  ACTIVE = "active",
+  BURNT = "burnt",
+  LOCKED = "locked"
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -28,6 +34,12 @@ export interface Card {
   originalAttack?: number; // Store original values during boost
   originalDefense?: number;
   originalSpecial?: number;
+  isCopied?: boolean; // Flag to indicate if this card was copied from an opponent
+  expiresInTurns?: number; // Number of turns until the copied card expires
+  originalOwner?: string; // The original owner of the card (for copied cards)
+  status?: CardStatus; // Track if card is active, burnt, etc.
+  evolvedFrom?: string[]; // IDs of cards that were burnt to create this card
+  evolvedInto?: string; // ID of the card this was evolved into (if burnt)
   onChainMetadata?: {
     creator: string;
     creationBlock: number;

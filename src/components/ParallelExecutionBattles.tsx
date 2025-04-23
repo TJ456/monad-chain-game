@@ -1,10 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Zap, Shield, Sword, Clock, ArrowRight, Sparkles, Play, Pause } from 'lucide-react';
+import { Zap, Shield, Sword, Clock, ArrowRight, Sparkles, Play, Pause, Code, Database, Layers } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 
 interface BattleCard {
   id: string;
@@ -17,17 +19,69 @@ interface BattleCard {
   description: string;
 }
 
+interface ParallelOperation {
+  id: string;
+  name: string;
+  startTime: number;
+  duration: number;
+  status: 'pending' | 'executing' | 'completed';
+  dependsOn: string[];
+}
+
+// Mock blockchain service to simulate parallel execution
+const monadBlockchainService = {
+  // Simulate parallel execution of operations
+  executeParallelOperations: (operations: ParallelOperation[]) => {
+    return new Promise<{
+      transactionHash: string;
+      executionTimeMs: number;
+      operationsCompleted: number;
+      sequentialTimeEstimate: number;
+    }>((resolve) => {
+      // Simulate blockchain processing time
+      const processingTime = Math.floor(Math.random() * 100) + 250;
+      const sequentialEstimate = operations.reduce((total, op) => total + op.duration, 0);
+
+      setTimeout(() => {
+        resolve({
+          transactionHash: `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`,
+          executionTimeMs: processingTime,
+          operationsCompleted: operations.length,
+          sequentialTimeEstimate: sequentialEstimate
+        });
+      }, processingTime);
+    });
+  },
+
+  // Get current blockchain metrics
+  getNetworkStats: () => {
+    return {
+      currentTPS: Math.floor(Math.random() * 1000) + 5000,
+      averageBlockTime: Math.floor(Math.random() * 50) + 150,
+      activeValidators: Math.floor(Math.random() * 20) + 80,
+      parallelExecutionEnabled: true
+    };
+  }
+};
+
 const ParallelExecutionBattles: React.FC = () => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [autoPlay, setAutoPlay] = useState(false);
   const [currentBattle, setCurrentBattle] = useState(0);
   const [executionProgress, setExecutionProgress] = useState(0);
+  const [activeOperations, setActiveOperations] = useState<ParallelOperation[]>([]);
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [networkStats, setNetworkStats] = useState(monadBlockchainService.getNetworkStats());
   const [battleStats, setBattleStats] = useState({
     totalBattles: 0,
     totalParallelOperations: 0,
     averageExecutionTime: 0,
-    totalTimesSaved: 0
+    totalTimesSaved: 0,
+    lastSpeedup: 0
   });
+
+  // Reference to store animation frame ID
+  const animationRef = useRef<number>();
 
   // Battle cards data
   const battleCards: BattleCard[] = [
@@ -88,6 +142,15 @@ const ParallelExecutionBattles: React.FC = () => {
     }
   ];
 
+  // Update network stats periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNetworkStats(monadBlockchainService.getNetworkStats());
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Auto-play effect
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -103,51 +166,128 @@ const ParallelExecutionBattles: React.FC = () => {
     };
   }, [autoPlay, currentBattle]);
 
+  // Generate parallel operations from battle cards
+  const generateOperations = (cards: BattleCard[]): ParallelOperation[] => {
+    const operations: ParallelOperation[] = [];
+
+    // For each card, generate 2-4 operations
+    cards.forEach((card, cardIndex) => {
+      const numOps = Math.floor(Math.random() * 3) + 2; // 2-4 operations per card
+
+      for (let i = 0; i < numOps; i++) {
+        const opId = `${card.id}-op-${i}`;
+        const dependsOn: string[] = [];
+
+        // Some operations depend on previous ones (for realistic simulation)
+        if (i > 0 && Math.random() > 0.5) {
+          dependsOn.push(`${card.id}-op-${i-1}`);
+        }
+
+        // Cross-card dependencies (for more complex scenarios)
+        if (cardIndex > 0 && Math.random() > 0.7) {
+          const prevCard = cards[cardIndex - 1];
+          dependsOn.push(`${prevCard.id}-op-0`);
+        }
+
+        operations.push({
+          id: opId,
+          name: `${card.name} ${['Effect', 'Calculation', 'Validation', 'Resolution'][i % 4]}`,
+          startTime: 0, // Will be set during execution
+          duration: Math.floor(Math.random() * 100) + 50, // 50-150ms per operation
+          status: 'pending',
+          dependsOn
+        });
+      }
+    });
+
+    return operations;
+  };
+
   // Simulate a battle with parallel execution
-  const simulateBattle = () => {
+  const simulateBattle = async () => {
     if (isSimulating) return;
 
     setIsSimulating(true);
     setExecutionProgress(0);
+    setTransactionHash(null);
 
     // Randomly select next battle scenario
     const nextBattle = (currentBattle + 1) % battleScenarios.length;
     setCurrentBattle(nextBattle);
 
-    // Animate execution progress
-    const duration = battleScenarios[nextBattle].parallelTime;
-    const startTime = Date.now();
-    const endTime = startTime + duration;
+    // Generate operations for this battle
+    const operations = generateOperations(battleScenarios[nextBattle].cards);
+    setActiveOperations(operations);
 
-    const progressInterval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+    // Start progress animation
+    let startTime = Date.now();
+    const animateProgress = () => {
+      const elapsed = Date.now() - startTime;
+      const estimatedDuration = 400; // Estimated duration for animation purposes
+      const progress = Math.min(elapsed / estimatedDuration, 0.95); // Cap at 95% until complete
 
       setExecutionProgress(progress);
+      animationRef.current = requestAnimationFrame(animateProgress);
+    };
 
-      if (now >= endTime) {
-        clearInterval(progressInterval);
+    animationRef.current = requestAnimationFrame(animateProgress);
 
-        // Update battle stats
-        setBattleStats(prev => {
-          const newTotalBattles = prev.totalBattles + 1;
-          const newTotalOps = prev.totalParallelOperations + battleScenarios[nextBattle].parallelOps;
-          const newTotalTime = prev.averageExecutionTime * prev.totalBattles + duration;
-          const newAvgTime = newTotalTime / newTotalBattles;
-          const newTimeSaved = prev.totalTimesSaved + (battleScenarios[nextBattle].sequentialTime - duration);
+    try {
+      // Execute the parallel operations on the mock blockchain
+      const result = await monadBlockchainService.executeParallelOperations(operations);
 
-          return {
-            totalBattles: newTotalBattles,
-            totalParallelOperations: newTotalOps,
-            averageExecutionTime: newAvgTime,
-            totalTimesSaved: newTimeSaved
-          };
-        });
-
-        setIsSimulating(false);
+      // Cancel the animation
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
-    }, 50);
+
+      // Set progress to 100%
+      setExecutionProgress(1);
+      setTransactionHash(result.transactionHash);
+
+      // Calculate speedup
+      const speedup = result.sequentialTimeEstimate / result.executionTimeMs;
+
+      // Update battle stats
+      setBattleStats(prev => {
+        const newTotalBattles = prev.totalBattles + 1;
+        const newTotalOps = prev.totalParallelOperations + operations.length;
+        const newTotalTime = prev.averageExecutionTime * prev.totalBattles + result.executionTimeMs;
+        const newAvgTime = newTotalTime / newTotalBattles;
+        const newTimeSaved = prev.totalTimesSaved + (result.sequentialTimeEstimate - result.executionTimeMs);
+
+        return {
+          totalBattles: newTotalBattles,
+          totalParallelOperations: newTotalOps,
+          averageExecutionTime: newAvgTime,
+          totalTimesSaved: newTimeSaved,
+          lastSpeedup: speedup
+        };
+      });
+
+      // Show success toast
+      toast.success(`Battle executed in ${result.executionTimeMs}ms`, {
+        description: `${operations.length} operations processed in parallel`,
+        duration: 3000
+      });
+
+      // Reset simulation state after a delay
+      setTimeout(() => {
+        setIsSimulating(false);
+      }, 1000);
+
+    } catch (error) {
+      console.error('Error executing parallel operations:', error);
+      toast.error('Error executing battle', {
+        description: 'There was an issue with the parallel execution',
+        duration: 3000
+      });
+
+      setIsSimulating(false);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    }
   };
 
   // Calculate speedup percentage
@@ -279,15 +419,45 @@ const ParallelExecutionBattles: React.FC = () => {
                 <span>Executing parallel operations...</span>
                 <span className="flex items-center">
                   <Clock className="h-3 w-3 mr-1" />
-                  {Math.round(executionProgress * battleScenarios[currentBattle].parallelTime)}ms
+                  {Math.round(executionProgress * 100)}%
                 </span>
               </div>
-              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full"
-                  style={{ width: `${executionProgress * 100}%` }}
-                ></div>
+              <Progress
+                value={executionProgress * 100}
+                className="h-1.5 w-full bg-slate-800"
+                indicatorClassName="bg-gradient-to-r from-emerald-600 to-teal-600"
+              />
+
+              {/* Active operations visualization */}
+              <div className="mt-3 bg-slate-900/80 p-2 rounded border border-slate-700">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-emerald-300 font-medium">Parallel Operations</span>
+                  <span className="text-xs text-slate-400">{activeOperations.length} operations</span>
+                </div>
+
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                  {activeOperations.map((op, index) => (
+                    <div key={op.id} className="flex items-center text-xs">
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse"></div>
+                      <span className="text-white truncate flex-grow">{op.name}</span>
+                      <span className="text-slate-400 ml-2">{op.duration}ms</span>
+                    </div>
+                  ))}
+                </div>
               </div>
+
+              {/* Transaction hash if available */}
+              {transactionHash && (
+                <div className="mt-2 p-1.5 bg-emerald-900/20 border border-emerald-500/30 rounded text-xs">
+                  <div className="flex items-center">
+                    <Database className="h-3 w-3 text-emerald-400 mr-1.5" />
+                    <span className="text-emerald-300 font-medium">Transaction Hash:</span>
+                  </div>
+                  <code className="block mt-1 text-emerald-400 font-mono text-[10px] truncate">
+                    {transactionHash}
+                  </code>
+                </div>
+              )}
             </div>
           )}
 
@@ -363,6 +533,70 @@ const ParallelExecutionBattles: React.FC = () => {
           </TooltipProvider>
         </div>
 
+        {/* Monad Network Status */}
+        <div className="bg-slate-950/50 p-3 rounded-lg border border-emerald-500/30 shadow-inner">
+          <h4 className="text-base font-bold text-white mb-2 flex items-center">
+            <Layers className="h-5 w-5 text-emerald-400 mr-2" />
+            Monad Network Status
+          </h4>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-700 flex flex-col items-center">
+              <span className="text-xs text-slate-400">Current TPS</span>
+              <span className="text-lg font-bold text-emerald-400">{networkStats.currentTPS.toLocaleString()}</span>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-700 flex flex-col items-center">
+              <span className="text-xs text-slate-400">Block Time</span>
+              <span className="text-lg font-bold text-emerald-400">{networkStats.averageBlockTime}<span className="text-xs ml-1">ms</span></span>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-700 flex flex-col items-center">
+              <span className="text-xs text-slate-400">Active Validators</span>
+              <span className="text-lg font-bold text-white">{networkStats.activeValidators}</span>
+            </div>
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-700 flex flex-col items-center">
+              <span className="text-xs text-slate-400">Parallel Execution</span>
+              <span className="text-lg font-bold text-emerald-400">{networkStats.parallelExecutionEnabled ? 'Enabled' : 'Disabled'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Educational Component */}
+        <div className="bg-slate-950/50 p-3 rounded-lg border border-emerald-500/30 shadow-inner">
+          <h4 className="text-base font-bold text-white mb-2 flex items-center">
+            <Code className="h-5 w-5 text-emerald-400 mr-2" />
+            How Parallel Execution Works
+          </h4>
+
+          <div className="text-xs text-slate-300 space-y-2">
+            <p>
+              Traditional blockchains process transactions sequentially, creating bottlenecks during high activity.
+              Monad's parallel execution identifies non-conflicting operations and processes them simultaneously.
+            </p>
+
+            <div className="bg-slate-900/80 p-2 rounded border border-slate-700">
+              <div className="flex items-center mb-1">
+                <span className="text-emerald-400 font-medium">Key Benefits:</span>
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-slate-400">
+                <li>Higher throughput (5,000-10,000 TPS)</li>
+                <li>Reduced latency for complex operations</li>
+                <li>Better resource utilization</li>
+                <li>Enhanced gameplay with simultaneous effects</li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-center">
+              <Button
+                variant="link"
+                className="text-emerald-400 text-xs p-0 h-auto"
+                onClick={() => window.open('https://monad.xyz/blog/parallel-execution', '_blank')}
+              >
+                Learn more about Monad's parallel execution
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {/* Battle statistics */}
         {battleStats.totalBattles > 0 && (
           <div className="bg-slate-950/50 p-3 rounded-lg border border-emerald-500/30 shadow-inner">
@@ -388,6 +622,12 @@ const ParallelExecutionBattles: React.FC = () => {
                 <span className="text-xs text-slate-400">Time Saved</span>
                 <span className="text-lg font-bold text-emerald-400">{(battleStats.totalTimesSaved / 1000).toFixed(1)}<span className="text-xs ml-1">s</span></span>
               </div>
+              {battleStats.lastSpeedup > 0 && (
+                <div className="col-span-2 bg-emerald-900/20 p-2 rounded border border-emerald-500/30 flex flex-col items-center">
+                  <span className="text-xs text-emerald-300">Last Battle Speedup</span>
+                  <span className="text-lg font-bold text-emerald-400">{battleStats.lastSpeedup.toFixed(1)}x faster</span>
+                </div>
+              )}
             </div>
           </div>
         )}

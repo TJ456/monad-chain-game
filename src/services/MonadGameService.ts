@@ -10,6 +10,7 @@ export class MonadGameService {
   private walletAddress: string | null = null;
   private monadGameContract: ethers.Contract | null = null;
   private isConnected: boolean = false;
+  private cardCopiedListeners: ((card: any) => void)[] = [];
 
   // Monad Testnet Configuration
   private readonly MONAD_TESTNET_CONFIG = {
@@ -999,36 +1000,40 @@ export class MonadGameService {
       let imageIpfsHash = '';
       if (imageFile) {
         console.log('Uploading card image to IPFS...');
-        imageIpfsHash = await ipfsService.uploadImage(imageFile);
+        imageIpfsHash = await ipfsService.uploadCardImage(imageFile);
         console.log('Image uploaded to IPFS with hash:', imageIpfsHash);
-      } else {
-        // Use a default image based on card type and rarity
-        const rarityNames = ['common', 'rare', 'epic', 'legendary'];
-        const typeNames = ['attack', 'defense', 'utility'];
-        const rarityName = rarityNames[cardData.rarity] || 'common';
-        const typeName = typeNames[cardData.cardType] || 'attack';
-        imageIpfsHash = `QmDefaultMonad${rarityName}${typeName}`;
       }
 
       // Check if we're using a placeholder contract address
       const contractAddress = import.meta.env.VITE_MONAD_CONTRACT_ADDRESS;
       if (contractAddress === '0x1234567890123456789012345678901234567890') {
         console.log('Using simulated transaction for development (placeholder contract address)');
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate blockchain delay
 
         // Create metadata for the card
-        const metadata = ipfsService.createCardMetadata(
-          {
-            ...cardData,
-            creator: this.walletAddress,
-            mintTime: Math.floor(Date.now() / 1000),
+        const metadata: CardMetadata = {
+          name: cardData.name,
+          description: cardData.description || `A ${cardData.rarity} card in the Monad Chain Game.`,
+          image: imageIpfsHash ? `ipfs://${imageIpfsHash}` : '/placeholder-card.png',
+          attributes: [
+            { trait_type: 'Rarity', value: cardData.rarity },
+            { trait_type: 'Type', value: cardData.cardType },
+            { trait_type: 'Attack', value: cardData.attack },
+            { trait_type: 'Defense', value: cardData.defense },
+            { trait_type: 'Mana', value: cardData.mana }
+          ],
+          properties: {
+            rarity: cardData.rarity.toString(),
+            cardType: cardData.cardType.toString(),
+            attack: cardData.attack,
+            defense: cardData.defense,
+            mana: cardData.mana,
             evolutionLevel: 0,
             battleCount: 0,
-            winCount: 0
-          },
-          imageIpfsHash,
-          cardData.description || ''
-        );
+            winCount: 0,
+            creator: this.walletAddress || 'unknown',
+            mintTime: Date.now()
+          }
+        };
 
         // Upload metadata to IPFS
         console.log('Uploading card metadata to IPFS...');
@@ -1040,6 +1045,11 @@ export class MonadGameService {
           blockNumber: Math.floor(Date.now() / 1000), // Use current timestamp as mock block number
           cardId: `${Math.floor(Math.random() * 1000000)}` // Mock card ID
         };
+      }
+
+      // Check if contract is initialized
+      if (!this.monadGameContract) {
+        throw new Error("Contract not initialized");
       }
 
       // Call the contract method
@@ -1054,48 +1064,14 @@ export class MonadGameService {
         { value: ethers.utils.parseEther("0.01") }
       );
 
-      console.log('Mint transaction submitted:', tx.hash);
+      console.log('Transaction submitted:', tx.hash);
 
       // Wait for the transaction to be mined
       const receipt = await tx.wait(1); // Wait for 1 confirmation
-      console.log('Mint transaction confirmed in block:', receipt.blockNumber);
+      console.log('Transaction confirmed in block:', receipt.blockNumber);
 
       // Get the card ID from the event logs
-      let cardId;
-      if (receipt.events) {
-        for (const event of receipt.events) {
-          if (event.event === 'CardMinted' && event.args) {
-            cardId = event.args.cardId.toString();
-            console.log('New card minted with ID:', cardId);
-            break;
-          }
-        }
-      }
-
-      // If we got the card ID, create and upload metadata
-      if (cardId) {
-        // Get the card details from the contract
-        const card = await this.monadGameContract?.getCard(cardId);
-
-        // Create metadata for the card
-        const metadata = ipfsService.createCardMetadata(
-          {
-            ...cardData,
-            creator: this.walletAddress,
-            mintTime: Math.floor(Date.now() / 1000),
-            evolutionLevel: card.evolutionLevel,
-            battleCount: card.battleCount,
-            winCount: card.winCount
-          },
-          imageIpfsHash,
-          cardData.description || ''
-        );
-
-        // Upload metadata to IPFS
-        console.log('Uploading card metadata to IPFS...');
-        const metadataIpfsHash = await ipfsService.uploadCardMetadata(metadata);
-        console.log('Metadata uploaded to IPFS with hash:', metadataIpfsHash);
-      }
+      const cardId = this.parseCardIdFromReceipt(receipt);
 
       return {
         txHash: tx.hash,
@@ -1110,9 +1086,128 @@ export class MonadGameService {
       console.log('Returning simulated transaction hash due to error');
       return {
         txHash: this.generateMockTransactionHash(),
-        blockNumber: Math.floor(Date.now() / 1000) // Use current timestamp as mock block number
+        blockNumber: Math.floor(Date.now() / 1000), // Use current timestamp as mock block number
+        cardId: `${Math.floor(Math.random() * 1000000)}` // Mock card ID
       };
     }
+  }
+
+  /**
+   * Add a copied card to the player's deck
+   * This is used by the Blockchain Hack feature to temporarily add a copy of an opponent's card
+   * @param copiedCard The card to add to the player's deck
+   * @returns Transaction details
+   */
+  async addCopiedCardToPlayerDeck(copiedCard: any): Promise<{txHash: string, blockNumber: number, cardId?: string}> {
+    if (!this.checkConnection()) {
+      throw new Error("Wallet not connected");
+    }
+
+    try {
+      console.log('Adding copied card to player deck:', copiedCard);
+
+      // Generate a unique ID for the copied card
+      const uniqueId = `copied-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      copiedCard.id = uniqueId;
+
+      // In a real implementation, this would interact with the blockchain
+      // For now, we'll simulate the transaction
+
+      // Simulate blockchain delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Generate a transaction hash
+      const txHash = this.generateMockTransactionHash();
+      const blockNumber = Math.floor(Date.now() / 1000); // Use current timestamp as mock block number
+
+      // Add visual effects to the card to show it's a copy
+      copiedCard.borderEffect = 'glowing-purple';
+      copiedCard.overlayEffect = 'hacked';
+
+      // Store the copied card in localStorage to persist it
+      try {
+        // Get existing copied cards
+        const existingCopiedCardsJson = localStorage.getItem('monad-copied-cards') || '[]';
+        const existingCopiedCards = JSON.parse(existingCopiedCardsJson);
+
+        // Add the new copied card
+        existingCopiedCards.push({
+          ...copiedCard,
+          copiedAt: Date.now(),
+          txHash
+        });
+
+        // Store back in localStorage
+        localStorage.setItem('monad-copied-cards', JSON.stringify(existingCopiedCards));
+      } catch (storageError) {
+        console.error('Error storing copied card in localStorage:', storageError);
+      }
+
+      // Emit an event that a card was copied
+      this.emitCardCopied(copiedCard);
+
+      return {
+        txHash,
+        blockNumber,
+        cardId: uniqueId
+      };
+    } catch (error) {
+      console.error('Error adding copied card to player deck:', error);
+
+      // Return a simulated transaction hash in case of error
+      return {
+        txHash: this.generateMockTransactionHash(),
+        blockNumber: Math.floor(Date.now() / 1000), // Use current timestamp as mock block number
+        cardId: `copied-error-${Math.floor(Math.random() * 1000)}` // Error card ID
+      };
+    }
+  }
+
+  /**
+   * Add a listener for card copied events
+   * @param listener The listener function to call when a card is copied
+   */
+  public addCardCopiedListener(listener: (card: any) => void): void {
+    this.cardCopiedListeners.push(listener);
+  }
+
+  /**
+   * Remove a card copied listener
+   * @param listener The listener to remove
+   */
+  public removeCardCopiedListener(listener: (card: any) => void): void {
+    this.cardCopiedListeners = this.cardCopiedListeners.filter(l => l !== listener);
+  }
+
+  /**
+   * Emit a card copied event
+   * @param card The card that was copied
+   */
+  private emitCardCopied(card: any): void {
+    this.cardCopiedListeners.forEach(listener => {
+      try {
+        listener(card);
+      } catch (error) {
+        console.error('Error in card copied listener:', error);
+      }
+    });
+  }
+
+  /**
+   * Parse the card ID from a transaction receipt
+   * @param receipt The transaction receipt
+   * @returns The card ID or undefined if not found
+   */
+  private parseCardIdFromReceipt(receipt: any): string | undefined {
+    if (!receipt.events) return undefined;
+
+    for (const event of receipt.events) {
+      if (event.event === 'CardMinted' && event.args) {
+        return event.args.cardId.toString();
+      }
+    }
+
+    return undefined;
   }
 
   // Batch mint multiple cards at once - optimized for Monad's parallel execution

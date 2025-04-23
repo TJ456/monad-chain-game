@@ -37,6 +37,82 @@ export interface ChainReactionResult {
 }
 
 class ChainReactionService {
+  // Store the last copied card for reference
+  private lastCopiedCard: any = null;
+
+  // Get opponent cards - in a real implementation, this would fetch from the blockchain
+  private async getOpponentCards(): Promise<any[]> {
+    try {
+      // In a real implementation, this would query the blockchain for opponent's cards
+      // For now, we'll use a simulated set of opponent cards
+      const opponentCards = [
+        {
+          id: "opponent-card-1",
+          name: "Quantum Entangler",
+          description: "A powerful card that entangles quantum states",
+          image: "/quantum-entangler.png",
+          rarity: "LEGENDARY",
+          type: "ATTACK",
+          attack: 8,
+          defense: 5,
+          mana: 7,
+          monadId: "0xMONAD101",
+          onChainMetadata: {
+            creator: "0xOpponentAddress",
+            creationBlock: 1420500,
+            evolutionStage: 2,
+            battleHistory: [1, 1, 1, 0]
+          }
+        },
+        {
+          id: "opponent-card-2",
+          name: "Parallel Processor",
+          description: "Executes multiple operations simultaneously",
+          image: "/parallel-processor.png",
+          rarity: "EPIC",
+          type: "UTILITY",
+          attack: 5,
+          defense: 7,
+          mana: 6,
+          monadId: "0xMONAD102",
+          onChainMetadata: {
+            creator: "0xOpponentAddress",
+            creationBlock: 1420550,
+            evolutionStage: 1,
+            battleHistory: [1, 0, 1, 1]
+          }
+        },
+        {
+          id: "opponent-card-3",
+          name: "Merkle Guardian",
+          description: "Protects data integrity with Merkle proofs",
+          image: "/merkle-guardian.png",
+          rarity: "RARE",
+          type: "DEFENSE",
+          attack: 3,
+          defense: 9,
+          mana: 5,
+          monadId: "0xMONAD103",
+          onChainMetadata: {
+            creator: "0xOpponentAddress",
+            creationBlock: 1420600,
+            evolutionStage: 1,
+            battleHistory: [0, 1, 1, 1]
+          }
+        }
+      ];
+
+      return opponentCards;
+    } catch (error) {
+      console.error('Error fetching opponent cards:', error);
+      return [];
+    }
+  }
+
+  // Get the last copied card
+  public getLastCopiedCard(): any {
+    return this.lastCopiedCard;
+  }
   private readonly effects: Record<string, ChainEffect> = {
     'blockchain-hack': {
       id: 'blockchain-hack',
@@ -272,18 +348,46 @@ class ChainReactionService {
               };
             }
           }
-          // Handle Blockchain Hack effect - mint a card
-          else if (effect.id === 'blockchain-hack' && sourceCardId) {
-            txResult = await monadGameService.mintCard({
-              name: effect.name,
-              description: effect.description,
-              rarity: 2, // Epic
-              cardType: 2, // Special
-              attack: effect.magnitude * 2,
-              defense: effect.magnitude,
-              mana: 5,
-              special: effect.triggerProbability * 100
-            });
+          // Handle Blockchain Hack effect - copy an opponent's card
+          else if (effect.id === 'blockchain-hack') {
+            // Get a random opponent card to copy
+            const opponentCards = await this.getOpponentCards();
+
+            if (opponentCards && opponentCards.length > 0) {
+              // Select a random card from opponent's collection
+              const randomIndex = Math.floor(Math.random() * opponentCards.length);
+              const cardToCopy = opponentCards[randomIndex];
+
+              // Create a copy with modified properties to show it's a copy
+              const copiedCard = {
+                ...cardToCopy,
+                name: `Copied ${cardToCopy.name}`,
+                description: `Copied from opponent's wallet using Monad's parallel execution technology`,
+                // Add a special property to indicate this is a temporary copy
+                isCopied: true,
+                // Set expiration in turns
+                expiresInTurns: effect.duration + 2,
+                originalOwner: cardToCopy.onChainMetadata?.creator || 'opponent'
+              };
+
+              // Add the copied card to player's deck
+              txResult = await monadGameService.addCopiedCardToPlayerDeck(copiedCard);
+
+              // Store the copied card information for display
+              this.lastCopiedCard = copiedCard;
+            } else {
+              // Fallback if no opponent cards are available
+              txResult = await monadGameService.mintCard({
+                name: "Blockchain Hack Fallback",
+                description: "No opponent cards were available to copy",
+                rarity: 2, // Epic
+                cardType: 2, // Special
+                attack: effect.magnitude * 2,
+                defense: effect.magnitude,
+                mana: 5,
+                special: effect.triggerProbability * 100
+              });
+            }
           } else {
             // Simulate a transaction result for other effects
             txResult = {
