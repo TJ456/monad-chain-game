@@ -7,6 +7,9 @@ import { raptorCastService } from '../services/RaptorCastService';
 import { initializeServices } from '../services/initServices';
 import { RefreshCw, Plus, AlertCircle, Database } from 'lucide-react';
 
+// Known valid transaction hash on Monad testnet for demo purposes
+const DEMO_TX_HASH = '0x7d5cb9018c18bfaa9e4e7b5f7c9b3070f8a1655a5bc4a8fe8b6d20a2c3a616c0';
+
 interface BlockchainHistoryCreatorProps {
   onHistoryCreated?: () => void;
 }
@@ -106,8 +109,9 @@ const BlockchainHistoryCreator: React.FC<BlockchainHistoryCreatorProps> = ({
         }
       }
 
-      // Generate a random transaction hash
-      const txHash = `0x${Array.from({length: 64}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      // Use a known valid transaction hash for demo purposes
+      // This ensures the "View on Monad Explorer" link will work
+      const txHash = DEMO_TX_HASH;
       const blockNumber = Math.floor(Date.now() / 1000) % 1000000;
       const timestamp = Date.now();
       const tokenId = Math.floor(Math.random() * 1000) + 1;

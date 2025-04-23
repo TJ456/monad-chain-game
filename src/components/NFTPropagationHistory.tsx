@@ -6,10 +6,11 @@ import { nftPropagationService } from '../services/NFTPropagationService';
 import { raptorCastService } from '../services/RaptorCastService';
 import { monadDb } from '../services/MonadDbService';
 import { initializeServices } from '../services/initServices';
-import { Network, Clock, CheckCircle, AlertCircle, ExternalLink, RefreshCw, Database } from 'lucide-react';
+import { Network, Clock, CheckCircle, AlertCircle, RefreshCw, Database } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from 'sonner';
 import BlockchainHistoryCreator from './BlockchainHistoryCreator';
+// No need for explorer URL imports as we're removing the link
 
 interface NFTPropagationHistoryProps {
   className?: string;
@@ -417,22 +418,7 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
                     )}
                   </Button>
 
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                        >
-                          <ExternalLink className="w-3 h-3 text-blue-400" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p className="text-xs">View on Monad Explorer</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  {/* Link to Monad Explorer removed as requested */}
                 </div>
               </div>
 

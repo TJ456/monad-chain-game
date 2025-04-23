@@ -530,9 +530,35 @@ export class NFTPropagationService {
     this.ensureInitialized();
 
     try {
-      // Get the propagation data from MonadDb
-      const propagation = await monadDb.get<any>(`user-propagation-${tokenId}`, 'user-propagations');
-      if (!propagation || !propagation.merkleRoot) return false;
+      console.log(`Verifying propagation integrity for NFT ${tokenId}`);
+
+      // First try to get from user-propagations
+      let propagation = await monadDb.get<any>(`user-propagation-${tokenId}`, 'user-propagations');
+
+      // If not found, try to find in blockchain-history
+      if (!propagation || !propagation.merkleRoot) {
+        console.log('Propagation not found in user-propagations, checking blockchain-history...');
+        const blockchainHistory = await monadDb.getAll<any>('blockchain-history');
+        propagation = blockchainHistory.find(entry =>
+          entry.tokenId === tokenId &&
+          (entry.type === 'propagation' || entry.type === 'evolution')
+        );
+      }
+
+      // If still not found, try propagation-history
+      if (!propagation || !propagation.merkleRoot) {
+        console.log('Propagation not found in blockchain-history, checking propagation-history...');
+        const propagationHistory = await monadDb.getAll<any>('propagation-history');
+        propagation = propagationHistory.find(entry => entry.tokenId === tokenId);
+      }
+
+      // If we still can't find it, return false
+      if (!propagation || !propagation.merkleRoot) {
+        console.log(`No propagation data found for NFT ${tokenId}`);
+        return false;
+      }
+
+      console.log(`Found propagation data for NFT ${tokenId} with merkle root: ${propagation.merkleRoot}`);
 
       // In a real implementation, this would verify the merkle proof against the blockchain
       // For now, we'll simulate the verification
