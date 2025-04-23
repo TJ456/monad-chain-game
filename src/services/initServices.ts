@@ -1,6 +1,8 @@
 import { consensusIntegration } from './ConsensusIntegration';
 import { gameConsensusService } from './GameConsensusService';
 import { monadDb } from './MonadDbService';
+import { nftPropagationService } from './NFTPropagationService';
+import { raptorCastService } from './RaptorCastService';
 import { toast } from 'sonner';
 
 /**
@@ -62,6 +64,44 @@ export async function initializeServices(showToasts: boolean = true) {
       // Continue even if game consensus fails
     }
 
+    // Initialize NFTPropagationService
+    try {
+      if (!nftPropagationService['isInitialized']) {
+        console.log('Initializing NFTPropagationService...');
+        await nftPropagationService.initialize();
+        console.log('NFTPropagationService initialized successfully');
+      } else {
+        console.log('NFTPropagationService already initialized');
+      }
+    } catch (nftError) {
+      console.error('Error initializing NFTPropagationService:', nftError);
+      if (showToasts) {
+        toast.error('Failed to initialize NFT propagation service', {
+          description: nftError instanceof Error ? nftError.message : 'Unknown error'
+        });
+      }
+      // Continue even if NFTPropagationService fails
+    }
+
+    // Initialize RaptorCastService
+    try {
+      if (!raptorCastService['isInitialized']) {
+        console.log('Initializing RaptorCastService...');
+        await raptorCastService.initialize();
+        console.log('RaptorCastService initialized successfully');
+      } else {
+        console.log('RaptorCastService already initialized');
+      }
+    } catch (raptorError) {
+      console.error('Error initializing RaptorCastService:', raptorError);
+      if (showToasts) {
+        toast.error('Failed to initialize RaptorCast service', {
+          description: raptorError instanceof Error ? raptorError.message : 'Unknown error'
+        });
+      }
+      // Continue even if RaptorCastService fails
+    }
+
     console.log('Services initialized successfully');
     return true;
   } catch (error) {
@@ -97,6 +137,18 @@ export async function areServicesInitialized(showToasts: boolean = false): Promi
     // Then check if game consensus service is initialized
     if (!gameConsensusService['isInitialized']) {
       console.log('GameConsensusService not initialized');
+      return false;
+    }
+
+    // Check if NFTPropagationService is initialized
+    if (!nftPropagationService['isInitialized']) {
+      console.log('NFTPropagationService not initialized');
+      return false;
+    }
+
+    // Check if RaptorCastService is initialized
+    if (!raptorCastService['isInitialized']) {
+      console.log('RaptorCastService not initialized');
       return false;
     }
 

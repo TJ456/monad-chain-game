@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { nftPropagationService } from '../services/NFTPropagationService';
 import { raptorCastService } from '../services/RaptorCastService';
 import { monadDb } from '../services/MonadDbService';
-import { Network, Clock, CheckCircle, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react';
+import { initializeServices } from '../services/initServices';
+import { Network, Clock, CheckCircle, AlertCircle, ExternalLink, RefreshCw, Database } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from 'sonner';
+import BlockchainHistoryCreator from './BlockchainHistoryCreator';
 
 interface NFTPropagationHistoryProps {
   className?: string;
@@ -28,19 +31,105 @@ interface HistoryEntry {
 const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className = '' }) => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDbInitialized, setIsDbInitialized] = useState<boolean>(false);
+  const [initializationError, setInitializationError] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<Record<string, boolean>>({});
 
+  // Check if services are initialized when component mounts
   useEffect(() => {
-    loadHistory();
+    const initializeServices = async () => {
+      try {
+        setIsLoading(true);
+
+        // Step 1: Check if MonadDb is already initialized
+        if (!monadDb['isInitialized']) {
+          console.log('Initializing MonadDb...');
+          try {
+            await monadDb.initialize({
+              cacheSize: 512, // 512MB cache
+              persistToDisk: true,
+              logLevel: 'info'
+            });
+            console.log('MonadDb initialized successfully');
+          } catch (dbError) {
+            console.error('Error initializing MonadDb:', dbError);
+            throw new Error(`Failed to initialize database: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
+          }
+        } else {
+          console.log('MonadDb is already initialized');
+        }
+
+        // Step 2: Initialize NFTPropagationService
+        if (!nftPropagationService['isInitialized']) {
+          console.log('Initializing NFTPropagationService...');
+          try {
+            await nftPropagationService.initialize();
+            console.log('NFTPropagationService initialized successfully');
+          } catch (nftError) {
+            console.error('Error initializing NFTPropagationService:', nftError);
+            throw new Error(`Failed to initialize NFT service: ${nftError instanceof Error ? nftError.message : 'Unknown error'}`);
+          }
+        } else {
+          console.log('NFTPropagationService is already initialized');
+        }
+
+        // Step 3: Initialize RaptorCastService if needed
+        if (!raptorCastService['isInitialized']) {
+          console.log('Initializing RaptorCastService...');
+          try {
+            await raptorCastService.initialize();
+            console.log('RaptorCastService initialized successfully');
+          } catch (raptorError) {
+            console.error('Error initializing RaptorCastService:', raptorError);
+            throw new Error(`Failed to initialize RaptorCast service: ${raptorError instanceof Error ? raptorError.message : 'Unknown error'}`);
+          }
+        } else {
+          console.log('RaptorCastService is already initialized');
+        }
+
+        // All services initialized successfully
+        setIsDbInitialized(true);
+        setInitializationError(null);
+        loadHistory();
+      } catch (error) {
+        console.error('Error initializing services:', error);
+        setInitializationError(error instanceof Error ? error.message : 'Unknown error initializing services');
+        setIsLoading(false);
+      }
+    };
+
+    initializeServices();
   }, []);
 
   const loadHistory = async () => {
     setIsLoading(true);
 
     try {
+      // Verify all required services are initialized
+      if (!isDbInitialized) {
+        console.log('Services not initialized, cannot load history');
+        setInitializationError('Required services not initialized. Please retry initialization.');
+        setIsLoading(false);
+        return;
+      }
+
       // Get blockchain transaction history first
       const blockchainHistory = await monadDb.getAll<any>('blockchain-history');
       console.log('Blockchain history:', blockchainHistory);
+
+      // Create entries from blockchain history
+      const blockchainEntries = blockchainHistory.map(entry => ({
+        type: entry.type as 'propagation' | 'evolution' | 'broadcast',
+        timestamp: entry.timestamp,
+        tokenId: entry.tokenId || entry.originalTokenId || entry.nftId,
+        evolvedTokenId: entry.evolvedTokenId,
+        messageId: entry.messageId,
+        merkleRoot: entry.merkleRoot || 'unknown',
+        blockchainStatus: entry.status || 'confirmed',
+        blockNumber: entry.blockNumber,
+        txHash: entry.txHash,
+        name: entry.name
+      }));
 
       // Get propagation history
       const propagationHistory = await nftPropagationService.getPropagationHistory();
@@ -53,7 +142,8 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
         merkleRoot: entry.merkleRoot,
         blockchainStatus: entry.blockchainStatus || 'pending',
         blockNumber: entry.blockNumber,
-        txHash: entry.txHash
+        txHash: entry.txHash,
+        name: entry.name
       }));
 
       // Get evolution history
@@ -67,7 +157,8 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
         merkleRoot: entry.merkleRoot,
         blockchainStatus: entry.blockchainStatus || 'pending',
         blockNumber: entry.blockNumber,
-        txHash: entry.txHash
+        txHash: entry.txHash,
+        name: entry.name || entry.originalName
       }));
 
       // Get broadcast history
@@ -85,13 +176,39 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
       }));
 
       // Combine and sort by timestamp (newest first)
-      const combinedHistory = [...propagationEntries, ...evolutionEntries, ...broadcastEntries]
+      // Prioritize blockchain entries as they're the most reliable
+      const combinedHistory = [...blockchainEntries, ...propagationEntries, ...evolutionEntries, ...broadcastEntries]
         .sort((a, b) => b.timestamp - a.timestamp);
 
-      console.log('Combined history:', combinedHistory);
-      setHistory(combinedHistory);
+      // Remove duplicates (prefer blockchain entries)
+      const uniqueHistory = combinedHistory.filter((entry, index, self) => {
+        // If it has a txHash, use that for uniqueness
+        if (entry.txHash) {
+          return index === self.findIndex(e => e.txHash === entry.txHash);
+        }
+        // Otherwise use a combination of type, timestamp and tokenId/messageId
+        return index === self.findIndex(e =>
+          e.type === entry.type &&
+          e.timestamp === entry.timestamp &&
+          ((e.tokenId && e.tokenId === entry.tokenId) ||
+           (e.messageId && e.messageId === entry.messageId))
+        );
+      });
+
+      console.log('Combined history:', uniqueHistory);
+      setHistory(uniqueHistory);
     } catch (error) {
       console.error('Error loading history:', error);
+
+      // Update initialization error if it's an initialization issue
+      if (error instanceof Error && error.message.includes('not initialized')) {
+        setInitializationError(error.message);
+        setIsDbInitialized(false);
+      } else {
+        toast.error('Failed to load blockchain history', {
+          description: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -161,22 +278,72 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
         <Button
           size="sm"
           variant="outline"
-          onClick={loadHistory}
+          onClick={() => {
+            toast.info('Refreshing blockchain history...');
+            loadHistory();
+          }}
           disabled={isLoading}
+          className="bg-blue-900/30 border-blue-500/30 hover:bg-blue-800/40 hover:border-blue-500/50"
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
+          Refresh History
         </Button>
       </div>
+
+      <BlockchainHistoryCreator onHistoryCreated={loadHistory} />
+
+      {initializationError && (
+        <Card className="p-4 bg-red-900/30 border-red-500/30 mb-4">
+          <div className="flex items-center">
+            <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+            <div>
+              <h4 className="text-sm font-medium text-red-300">Database Error</h4>
+              <p className="text-xs text-red-300/80 mt-1">{initializationError}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3 bg-red-900/30 border-red-500/30 text-red-300 hover:bg-red-800/40"
+            onClick={async () => {
+              setIsLoading(true);
+              try {
+                // Reinitialize all required services
+                await monadDb.initialize({
+                  cacheSize: 512,
+                  persistToDisk: true,
+                  logLevel: 'info'
+                });
+
+                await nftPropagationService.initialize();
+                await raptorCastService.initialize();
+
+                setIsDbInitialized(true);
+                setInitializationError(null);
+                loadHistory();
+              } catch (error) {
+                console.error('Error reinitializing services:', error);
+                setInitializationError(`Failed to initialize services: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+          >
+            <Database className="w-4 h-4 mr-2" />
+            Retry Database Initialization
+          </Button>
+        </Card>
+      )}
 
       {isLoading ? (
         <Card className="p-8 text-center">
           <RefreshCw className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-2" />
           <p className="text-gray-400">Loading blockchain history from MonadDb...</p>
         </Card>
-      ) : history.length === 0 ? (
+      ) : history.length === 0 && !initializationError ? (
         <Card className="p-8 text-center">
           <p className="text-gray-400">No history found in MonadDb</p>
+          <p className="text-gray-400 mt-2">Click the "Create Blockchain Entry" button above to create a test entry</p>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -190,8 +357,8 @@ const NFTPropagationHistory: React.FC<NFTPropagationHistoryProps> = ({ className
 
                   <div>
                     <div className="text-sm text-white">
-                      {entry.type === 'propagation' && `NFT #${entry.tokenId} Propagated`}
-                      {entry.type === 'evolution' && `NFT #${entry.tokenId} Evolved`}
+                      {entry.type === 'propagation' && `NFT #${entry.tokenId}${entry.name ? ` (${entry.name})` : ''} Propagated`}
+                      {entry.type === 'evolution' && `NFT #${entry.tokenId}${entry.name ? ` (${entry.name})` : ''} Evolved`}
                       {entry.type === 'broadcast' && `Message ${entry.messageId?.substring(0, 8)}... Broadcast`}
                     </div>
 
