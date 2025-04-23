@@ -977,9 +977,39 @@ export class RaptorCastService {
     this.ensureInitialized();
 
     try {
-      // Get the broadcast data from MonadDb
-      const broadcast = await monadDb.get<any>(`raptorcast-broadcast-${messageId}`, 'raptorcast');
-      if (!broadcast || !broadcast.merkleRoot) return false;
+      console.log(`Verifying broadcast integrity for message ${messageId}`);
+
+      // First try to get from raptorcast namespace
+      let broadcast = await monadDb.get<any>(`raptorcast-broadcast-${messageId}`, 'raptorcast');
+
+      // If not found, try to find in blockchain-history
+      if (!broadcast || !broadcast.merkleRoot) {
+        console.log('Broadcast not found in raptorcast namespace, checking blockchain-history...');
+        const blockchainHistory = await monadDb.getAll<any>('blockchain-history');
+        broadcast = blockchainHistory.find(entry =>
+          entry.messageId === messageId ||
+          entry.messageId?.includes(messageId) ||
+          (entry.type === 'broadcast')
+        );
+      }
+
+      // If still not found, try broadcast-history
+      if (!broadcast || !broadcast.merkleRoot) {
+        console.log('Broadcast not found in blockchain-history, checking broadcast-history...');
+        const broadcastHistory = await monadDb.getAll<any>('broadcast-history');
+        broadcast = broadcastHistory.find(entry =>
+          entry.messageId === messageId ||
+          entry.messageId?.includes(messageId)
+        );
+      }
+
+      // If we still can't find it, return false
+      if (!broadcast || !broadcast.merkleRoot) {
+        console.log(`No broadcast data found for message ${messageId}`);
+        return false;
+      }
+
+      console.log(`Found broadcast data for message ${messageId} with merkle root: ${broadcast.merkleRoot}`);
 
       // In a real implementation, this would verify the merkle proof against the blockchain
       // For now, we'll simulate the verification

@@ -211,27 +211,36 @@ const Game = () => {
             setWalletAddress(address);
             setWalletConnected(true);
 
-            // Check if player is registered
-            try {
-                const playerData = await monadGameService.getPlayerData(address);
-                // If we get here without an error, the player is registered
-                console.log('Player data retrieved:', playerData);
+            // Check if player is already registered in localStorage first
+            const storedRegistration = localStorage.getItem(`monad-player-registered-${address}`);
+            if (storedRegistration === 'true') {
+                console.log('Player registration found in localStorage');
                 setIsRegistered(true);
-            } catch (error) {
-                console.log('Player not registered yet:', error);
-                // For development purposes, we'll auto-register the player
-                // This makes testing easier
-                if (process.env.NODE_ENV === 'development') {
-                    try {
-                        console.log('Auto-registering player in development mode');
-                        await monadGameService.registerPlayer();
-                        setIsRegistered(true);
-                    } catch (regError) {
-                        console.error('Auto-registration failed:', regError);
-                        // Continue without registration
+            } else {
+                // If not in localStorage, check with the service
+                try {
+                    const playerData = await monadGameService.getPlayerData(address);
+                    // If we get here without an error, the player is registered
+                    console.log('Player data retrieved:', playerData);
+                    setIsRegistered(true);
+                    // Store registration status in localStorage for future reference
+                    localStorage.setItem(`monad-player-registered-${address}`, 'true');
+                } catch (error) {
+                    console.log('Player not registered yet:', error);
+                    // For development purposes, we'll auto-register the player
+                    // This makes testing easier
+                    if (process.env.NODE_ENV === 'development') {
+                        try {
+                            console.log('Auto-registering player in development mode');
+                            await monadGameService.registerPlayer();
+                            setIsRegistered(true);
+                        } catch (regError) {
+                            console.error('Auto-registration failed:', regError);
+                            // Continue without registration
+                        }
+                    } else {
+                        setIsRegistered(false);
                     }
-                } else {
-                    setIsRegistered(false);
                 }
             }
 
@@ -809,9 +818,24 @@ const Game = () => {
   };
 
   const playCard = async (card: GameCardType) => {
-    if (!walletConnected || !isRegistered) {
-        toast.error("Please connect wallet and register first");
+    if (!walletConnected) {
+        toast.error("Please connect your wallet first");
         return;
+    }
+
+    // Check if player is registered in localStorage if the isRegistered state is false
+    if (!isRegistered) {
+        const address = await monadGameService.getWalletAddress();
+        const storedRegistration = localStorage.getItem(`monad-player-registered-${address}`);
+
+        if (storedRegistration === 'true') {
+            // Player is registered in localStorage, update the state
+            console.log('Player registration found in localStorage during card play');
+            setIsRegistered(true);
+        } else {
+            toast.error("Please register first");
+            return;
+        }
     }
 
     if (gameStatus !== 'playing' || currentTurn !== 'player') {
@@ -1222,9 +1246,24 @@ const Game = () => {
   };
 
   const handleShardRedemption = async () => {
-    if (!walletConnected || !isRegistered) {
-        toast.error("Please connect wallet and register first");
+    if (!walletConnected) {
+        toast.error("Please connect your wallet first");
         return;
+    }
+
+    // Check if player is registered in localStorage if the isRegistered state is false
+    if (!isRegistered) {
+        const address = await monadGameService.getWalletAddress();
+        const storedRegistration = localStorage.getItem(`monad-player-registered-${address}`);
+
+        if (storedRegistration === 'true') {
+            // Player is registered in localStorage, update the state
+            console.log('Player registration found in localStorage during shard redemption');
+            setIsRegistered(true);
+        } else {
+            toast.error("Please register first");
+            return;
+        }
     }
 
     try {
@@ -1271,6 +1310,18 @@ const Game = () => {
   };
 
   const endGame = async (playerWon: boolean | null) => {
+    // Check if player is registered in localStorage if the isRegistered state is false
+    if (!isRegistered && walletConnected) {
+        const address = await monadGameService.getWalletAddress();
+        const storedRegistration = localStorage.getItem(`monad-player-registered-${address}`);
+
+        if (storedRegistration === 'true') {
+            // Player is registered in localStorage, update the state
+            console.log('Player registration found in localStorage during game end');
+            setIsRegistered(true);
+        }
+    }
+
     try {
         // Show transaction pending state
         setIsTransactionPending(true);
