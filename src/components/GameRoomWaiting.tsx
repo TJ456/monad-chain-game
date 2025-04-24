@@ -82,7 +82,7 @@ const GameRoomWaiting: React.FC<GameRoomWaitingProps> = ({
   };
 
   return (
-    <Card className="glassmorphism border-blue-500/30">
+    <Card className="glassmorphism border-blue-500/30 mt-16"> {/* Added mt-16 to create space below the navbar */}
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
@@ -97,7 +97,7 @@ const GameRoomWaiting: React.FC<GameRoomWaitingProps> = ({
             variant="outline"
             size="sm"
             onClick={() => setShowChat(!showChat)}
-            className="border-blue-500/30 text-blue-400"
+            className="border-blue-500/30 text-blue-400 z-10" /* Added z-10 to ensure button stays above other elements */
           >
             <MessageSquare className="h-4 w-4 mr-2" />
             {showChat ? "Hide Chat" : "Show Chat"}

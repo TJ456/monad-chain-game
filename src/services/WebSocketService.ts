@@ -135,7 +135,7 @@ class WebSocketService {
     this.connectionStartTime = Date.now();
 
     // Build the WebSocket URL with session resumption if available
-    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8082';
+    let wsUrl = import.meta.env.VITE_WEBSOCKET_URL || 'ws://localhost:8081';
 
     // Convert http/https URLs to ws/wss
     if (wsUrl.startsWith('http://')) {
