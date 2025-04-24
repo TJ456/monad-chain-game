@@ -566,7 +566,7 @@ class GameWebSocketServer {
 }
 
 // Start the server
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8082; // Changed from 8081 to 8082
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8081; // Using port 8081
 const server = new GameWebSocketServer(PORT);
 
 // Handle process termination

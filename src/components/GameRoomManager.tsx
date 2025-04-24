@@ -45,7 +45,7 @@ const GameRoomManager: React.FC<GameRoomManagerProps> = ({
   };
 
   return (
-    <>
+    <div className="mt-16"> {/* Added a container with top margin to avoid navbar collision */}
       {currentView === 'menu' && (
         <Card className="glassmorphism border-blue-500/30">
           <CardHeader>
@@ -178,7 +178,7 @@ const GameRoomManager: React.FC<GameRoomManagerProps> = ({
           username={username}
         />
       )}
-    </>
+    </div>
   );
 };
 

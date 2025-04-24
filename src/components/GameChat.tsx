@@ -171,7 +171,7 @@ const GameChat: React.FC<GameChatProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full border border-gray-700 rounded-lg bg-black/20 overflow-hidden">
+    <div className="flex flex-col h-full border border-gray-700 rounded-lg bg-black/20 overflow-hidden z-20 relative"> {/* Added z-20 and relative positioning */}
       <div className="p-2 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
         <h3 className="text-sm font-medium text-white">Game Chat</h3>
         <div className="flex items-center space-x-2">
