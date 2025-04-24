@@ -786,34 +786,56 @@ const Game = () => {
     const damage = fatigueDamage;
     const message = `${target === 'player' ? 'You take' : 'Opponent takes'} ${damage} fatigue damage.`;
 
+    // Apply fatigue damage
     if (target === 'player') {
         const newHealth = Math.max(0, playerHealth - damage);
         setPlayerHealth(newHealth);
+
+        // Check if player died from fatigue
         if (newHealth <= 0) {
-            setBattleLog(prev => [...prev, message]);
+            setBattleLog(prev => [...prev, message, "You were defeated by fatigue!"]);
             endGame(false);
             return;
         }
     } else {
         const newHealth = Math.max(0, opponentHealth - damage);
         setOpponentHealth(newHealth);
+
+        // Check if opponent died from fatigue
         if (newHealth <= 0) {
-            setBattleLog(prev => [...prev, message]);
+            setBattleLog(prev => [...prev, message, "Opponent was defeated by fatigue!"]);
             endGame(true);
             return;
         }
     }
 
+    // Add message to battle log
     setBattleLog(prev => [...prev, message]);
+
+    // Increase fatigue damage for next time
     setFatigueDamage(prev => prev + 1);
+
+    // Track consecutive skips
     setConsecutiveSkips(prev => prev + 1);
 
-    // Only check for draw after 3 consecutive skips
-    if (consecutiveSkips >= 2) { // Changed from 3 to 2 since we increment before checking
+    // Check for draw conditions:
+    // 1. If both players have skipped multiple turns
+    // 2. If the game has gone on too long (30+ turns)
+    // 3. If both players are just healing and not dealing damage
+    if (consecutiveSkips >= 3) {
+        setBattleLog(prev => [...prev, "The battle ends in a draw due to inactivity."]);
         endGame(null);
         return;
     }
 
+    // If both players have very low health and can't play cards, it's a draw
+    if (playerHealth <= 3 && opponentHealth <= 3 && playerDeck.length === 0 && opponentCards.length === 0) {
+        setBattleLog(prev => [...prev, "The battle ends in a draw as both combatants are exhausted."]);
+        endGame(null);
+        return;
+    }
+
+    // Continue the game
     endTurn(target === 'player' ? 'opponent' : 'player');
   };
 
@@ -1408,9 +1430,32 @@ const Game = () => {
           }
         );
 
-        // Award shards
-        if (playerWon) {
+        // Award shards based on game outcome
+        if (playerWon === true) {
+            // Player won - award full shard reward
             const shardReward = getShardReward();
+
+            // Calculate bonus shards based on performance
+            let bonusShards = 0;
+
+            // Bonus for high health remaining
+            if (playerHealth >= 15) {
+                bonusShards += 1;
+            }
+
+            // Bonus for winning quickly (fewer moves)
+            if (pendingMoves.length <= 5) {
+                bonusShards += 1;
+            }
+
+            // Bonus for winning against higher difficulty
+            if (aiDifficulty === AIDifficultyTier.LEGEND) {
+                bonusShards += 2;
+            } else if (aiDifficulty === AIDifficultyTier.VETERAN) {
+                bonusShards += 1;
+            }
+
+            const totalShardReward = shardReward + bonusShards;
 
             // Submit game result and claim shards - get real transaction data
             const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
@@ -1440,21 +1485,81 @@ const Game = () => {
                 status: 'confirmed',
                 blockNumber: shardBlockNumber,
                 timestamp: Date.now(),
-                description: `Claimed ${shardReward} MONAD shards as reward`
+                description: `Claimed ${totalShardReward} MONAD shards as reward`
             };
 
             setTransactions(prev => [shardTransaction, ...prev].slice(0, 5));
 
-            // Update player's MONAD balance
-            setPlayerMonadBalance(prev => prev + shardReward);
+            // Update player's MONAD balance and shards
+            setPlayerMonadBalance(prev => prev + totalShardReward);
 
-            toast.success(`Earned ${shardReward} MONAD shards!`, {
-                description: "Shards added to your inventory"
+            // Update player data with new shards
+            setPlayerData(prev => ({
+                ...prev,
+                shards: prev.shards + totalShardReward
+            }));
+
+            // Show success message with bonus explanation
+            if (bonusShards > 0) {
+                toast.success(`Earned ${totalShardReward} MONAD shards!`, {
+                    description: `Base reward: ${shardReward} + Bonus: ${bonusShards} shards for excellent performance!`
+                });
+            } else {
+                toast.success(`Earned ${totalShardReward} MONAD shards!`, {
+                    description: "Shards added to your inventory"
+                });
+            }
+        } else if (playerWon === false) {
+            // Player lost - award consolation shards for effort
+            const consolationShards = Math.max(1, Math.floor(getShardReward() / 3));
+
+            // Only award consolation shards if the player put up a good fight
+            if (pendingMoves.length >= 3) {
+                // Submit game result and claim consolation shards
+                const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
+                const shardTxHash = shardResult.txHash;
+                const shardBlockNumber = shardResult.blockNumber;
+
+                // Update player's MONAD balance and shards
+                setPlayerMonadBalance(prev => prev + consolationShards);
+
+                // Update player data with new shards
+                setPlayerData(prev => ({
+                    ...prev,
+                    shards: prev.shards + consolationShards
+                }));
+
+                toast.success(`Earned ${consolationShards} consolation shards!`, {
+                    description: "Keep practicing to earn more shards next time"
+                });
+            }
+        } else if (playerWon === null) {
+            // Draw - award partial shards
+            const drawShards = Math.floor(getShardReward() / 2);
+
+            // Submit game result and claim draw shards
+            const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
+            const shardTxHash = shardResult.txHash;
+            const shardBlockNumber = shardResult.blockNumber;
+
+            // Update player's MONAD balance and shards
+            setPlayerMonadBalance(prev => prev + drawShards);
+
+            // Update player data with new shards
+            setPlayerData(prev => ({
+                ...prev,
+                shards: prev.shards + drawShards
+            }));
+
+            toast.success(`Earned ${drawShards} MONAD shards for the draw!`, {
+                description: "A hard-fought battle ends in a draw"
             });
+        }
 
-            // Add a button to view the shard transaction in the explorer
-            const shardExplorerUrl = getTransactionExplorerUrl(shardTxHash);
-            toast.success(
+            // Add a button to view the shard transaction in the explorer if available
+            if (shardResult && shardTxHash) {
+                const shardExplorerUrl = getTransactionExplorerUrl(shardTxHash);
+                toast.success(
               <div className="flex flex-col space-y-2">
                 <span>View shard claim on MONAD Explorer</span>
                 <button
@@ -1472,7 +1577,8 @@ const Game = () => {
                 duration: 5000,
               }
             );
-        }
+            }
+
 
         // If player lost, track battle history for their cards
         if (playerWon === false && playerDeck.length > 0) {

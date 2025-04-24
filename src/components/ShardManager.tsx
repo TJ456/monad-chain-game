@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Player, AIDifficultyTier, TierRequirement, NFTRedemptionRule, CardRarity } from '@/types/game';
 import { monadGameState } from '@/data/gameData';
-import { Sparkles, Clock, AlertCircle, Flame, Gift, BadgeCheck } from "lucide-react";
+import { Sparkles, Clock, AlertCircle, Flame, Gift, BadgeCheck, Award, Zap, Repeat } from "lucide-react";
 
 interface ShardManagerProps {
   player: Player;
@@ -48,12 +48,12 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
   const [redemptionInProgress, setRedemptionInProgress] = useState(false);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [recentRedemption, setRecentRedemption] = useState(false);
-  
+
   const canRedeem = player.shards >= nftRedemptionRules.shardsRequired;
-  const cooldownActive = player.lastTrialTime && 
+  const cooldownActive = player.lastTrialTime &&
     (Date.now() - player.lastTrialTime < nftRedemptionRules.cooldownPeriod);
   const hasEnoughGas = player.monad >= nftRedemptionRules.gasCost;
-  
+
   // Reset success animation when player data changes
   useEffect(() => {
     if (showSuccessAnimation) {
@@ -63,7 +63,7 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
       return () => clearTimeout(timer);
     }
   }, [showSuccessAnimation]);
-  
+
   // Check for recent redemption
   useEffect(() => {
     if (player.lastTrialTime && Date.now() - player.lastTrialTime < 5000) {
@@ -71,52 +71,52 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
       setTimeout(() => setRecentRedemption(false), 5000);
     }
   }, [player.lastTrialTime]);
-  
+
   // Calculate time remaining in cooldown
   const getTimeRemaining = () => {
     if (!player.lastTrialTime || !cooldownActive) return '';
-    
+
     const timeRemaining = player.lastTrialTime + nftRedemptionRules.cooldownPeriod - Date.now();
     const hours = Math.floor(timeRemaining / (60 * 60 * 1000));
     const minutes = Math.floor((timeRemaining % (60 * 60 * 1000)) / (60 * 1000));
-    
+
     return `${hours}h ${minutes}m`;
   };
-  
+
   const handleRedeemClick = () => {
     if (!canRedeem) {
-      toast.error("Not enough shards", { 
-        description: `You need ${nftRedemptionRules.shardsRequired} shards to redeem an NFT.` 
+      toast.error("Not enough shards", {
+        description: `You need ${nftRedemptionRules.shardsRequired} shards to redeem an NFT.`
       });
       return;
     }
-    
+
     if (cooldownActive) {
-      toast.error("Cooldown active", { 
-        description: `Try again in ${getTimeRemaining()}.` 
+      toast.error("Cooldown active", {
+        description: `Try again in ${getTimeRemaining()}.`
       });
       return;
     }
-    
+
     if (!hasEnoughGas) {
-      toast.error("Insufficient MONAD for gas", { 
-        description: `You need ${nftRedemptionRules.gasCost} MONAD for transaction fees.` 
+      toast.error("Insufficient MONAD for gas", {
+        description: `You need ${nftRedemptionRules.gasCost} MONAD for transaction fees.`
       });
       return;
     }
-    
+
     if (player.dailyTrialsRemaining <= 0) {
-      toast.error("Daily limit reached", { 
+      toast.error("Daily limit reached", {
         description: `Maximum ${nftRedemptionRules.maxDailyTrials} NFT trials per day.`
       });
       return;
     }
-    
+
     setRedemptionInProgress(true);
-    
+
     // Call the parent component's handler
     onRedeemShards();
-    
+
     // Show success animation
     setTimeout(() => {
       setRedemptionInProgress(false);
@@ -131,12 +131,12 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
           <span className="flex items-center">
             {showSuccessAnimation ? (
               <>
-                <Gift className="h-5 w-5 mr-2 text-amber-400" /> 
+                <Gift className="h-5 w-5 mr-2 text-amber-400" />
                 NFT Redeemed!
               </>
             ) : (
               <>
-                <Sparkles className="h-5 w-5 mr-2 text-emerald-400" /> 
+                <Sparkles className="h-5 w-5 mr-2 text-emerald-400" />
                 Shard Manager
               </>
             )}
@@ -156,7 +156,7 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
           )}
         </CardDescription>
       </CardHeader>
-      
+
       <CardContent className={`space-y-4 ${showSuccessAnimation ? 'animate-fade-in' : ''}`}>
         {/* Shard Progress with Animation */}
         <div className="space-y-2">
@@ -171,12 +171,12 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
               {Math.floor((player.shards / nftRedemptionRules.shardsRequired) * 100)}% Complete
             </Badge>
           </div>
-          <Progress 
-            value={(player.shards / nftRedemptionRules.shardsRequired) * 100} 
+          <Progress
+            value={(player.shards / nftRedemptionRules.shardsRequired) * 100}
             className="h-2 bg-black/50"
           />
         </div>
-        
+
         {showSuccessAnimation ? (
           <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 text-center space-y-3">
             <div className="flex justify-center">
@@ -214,14 +214,14 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
                     // Calculate if this tier is active based on player win rate
                     const playerWinRate = player.wins > 0 ? player.wins / (player.wins + player.losses) : 0;
                     const isTierActive = playerWinRate >= tier.requiredWinRate;
-                    const isCurrentTier = 
+                    const isCurrentTier =
                       (tier.tier === AIDifficultyTier.NOVICE && playerWinRate < tierRequirements[1].requiredWinRate) ||
                       (tier.tier === AIDifficultyTier.VETERAN && playerWinRate >= tierRequirements[1].requiredWinRate && playerWinRate < tierRequirements[2].requiredWinRate) ||
                       (tier.tier === AIDifficultyTier.LEGEND && playerWinRate >= tierRequirements[2].requiredWinRate);
-                    
+
                     return (
-                      <tr 
-                        key={tier.tier} 
+                      <tr
+                        key={tier.tier}
                         className={`${isCurrentTier ? 'bg-emerald-900/20' : 'bg-black/20'} hover:bg-black/40 transition-colors`}
                       >
                         <td className="py-2 px-3 capitalize">
@@ -242,7 +242,7 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
                           <div className="flex items-center justify-center">
                             <Sparkles className="h-3 w-3 mr-1 text-emerald-400" />
                             <span className={`${isTierActive ? 'text-emerald-400 font-semibold' : 'text-gray-400'}`}>
-                              {tier.shardReward} 
+                              {tier.shardReward}
                             </span>
                           </div>
                         </td>
@@ -262,7 +262,41 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
                 </tbody>
               </table>
             </div>
-            
+
+            {/* Bonus Shard Opportunities */}
+            <div className="text-sm space-y-3 bg-black/20 p-3 rounded-md border border-emerald-500/20">
+              <h3 className="font-semibold text-white flex items-center">
+                <Sparkles className="h-4 w-4 mr-2 text-emerald-400" />
+                Bonus Shard Opportunities
+              </h3>
+              <ul className="space-y-2 text-gray-300">
+                <li className="flex items-center">
+                  <div className="w-6 h-6 rounded-full bg-black/30 flex items-center justify-center mr-2 flex-shrink-0">
+                    <Flame className="h-3 w-3 text-amber-400" />
+                  </div>
+                  <span>Win with <span className="text-amber-400 font-semibold">high health</span> remaining: <span className="text-emerald-400 font-semibold">+1 Shard</span></span>
+                </li>
+                <li className="flex items-center">
+                  <div className="w-6 h-6 rounded-full bg-black/30 flex items-center justify-center mr-2 flex-shrink-0">
+                    <Zap className="h-3 w-3 text-blue-400" />
+                  </div>
+                  <span>Win <span className="text-blue-400 font-semibold">quickly</span> (5 moves or less): <span className="text-emerald-400 font-semibold">+1 Shard</span></span>
+                </li>
+                <li className="flex items-center">
+                  <div className="w-6 h-6 rounded-full bg-black/30 flex items-center justify-center mr-2 flex-shrink-0">
+                    <Award className="h-3 w-3 text-purple-400" />
+                  </div>
+                  <span>Win against <span className="text-purple-400 font-semibold">Legend</span> difficulty: <span className="text-emerald-400 font-semibold">+2 Shards</span></span>
+                </li>
+                <li className="flex items-center">
+                  <div className="w-6 h-6 rounded-full bg-black/30 flex items-center justify-center mr-2 flex-shrink-0">
+                    <Repeat className="h-3 w-3 text-green-400" />
+                  </div>
+                  <span>Win <span className="text-green-400 font-semibold">3 games in a row</span>: <span className="text-emerald-400 font-semibold">+2 Shards</span></span>
+                </li>
+              </ul>
+            </div>
+
             {/* Anti-Farming Info with Icons */}
             <div className="text-sm space-y-3 bg-black/20 p-3 rounded-md border border-white/10">
               <h3 className="font-semibold text-white flex items-center">
@@ -297,7 +331,7 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
                   <span>Shards expire after 24 hours</span>
                 </li>
               </ul>
-              
+
               {/* Player Stats */}
               <div className="bg-black/30 rounded p-2 mt-2">
                 <div className="flex justify-between items-center mb-1">
@@ -313,22 +347,22 @@ const ShardManager: React.FC<ShardManagerProps> = ({ player, onRedeemShards }) =
           </>
         )}
       </CardContent>
-      
+
       <CardFooter>
         {showSuccessAnimation ? (
-          <Button 
+          <Button
             className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white"
             onClick={() => setShowSuccessAnimation(false)}
           >
             Continue
           </Button>
         ) : (
-          <Button 
+          <Button
             onClick={handleRedeemClick}
             onMouseEnter={() => setRedeemHover(true)}
             onMouseLeave={() => setRedeemHover(false)}
             disabled={!canRedeem || cooldownActive || !hasEnoughGas || player.dailyTrialsRemaining <= 0 || redemptionInProgress}
-            className={`w-full ${redeemHover && canRedeem && !cooldownActive && hasEnoughGas && player.dailyTrialsRemaining > 0 ? 'redeem-animation' : ''} 
+            className={`w-full ${redeemHover && canRedeem && !cooldownActive && hasEnoughGas && player.dailyTrialsRemaining > 0 ? 'redeem-animation' : ''}
               ${redemptionInProgress ? 'bg-gradient-to-r from-amber-400 to-amber-500' : 'bg-gradient-to-r from-emerald-400 to-teal-500'} text-white flex items-center justify-center`}
           >
             {redemptionInProgress ? (

@@ -9,12 +9,17 @@ export const aiStrategies: Record<AIDifficultyTier, AIBehavior> = {
     cardSelectionStrategy: 'random',
     usesCombo: false,
     recognizesPlayerPatterns: false,
-    defensiveThreshold: 0.4, // Increased from 0.3 for better survivability
-    aggressiveThreshold: 0.6, // Lowered from 0.7 for more balanced gameplay
-    manaEfficiency: 0.6, // Improved from 0.5 for slightly better mana usage
-    plansTurnsAhead: 1, // Now plans 1 turn ahead instead of 0
-    specialMoveFrequency: 0.3, // Increased from 0.2 for more interesting gameplay
-    adaptsToPreviousPlayerMoves: false
+    defensiveThreshold: 0.4, // Becomes defensive at 40% health
+    aggressiveThreshold: 0.6, // Becomes aggressive at 60% health
+    manaEfficiency: 0.6, // Uses 60% of available mana efficiently
+    plansTurnsAhead: 1, // Plans 1 turn ahead
+    specialMoveFrequency: 0.3, // 30% chance to use special moves
+    adaptsToPreviousPlayerMoves: false,
+    mistakeChance: 0.25, // 25% chance to make a suboptimal move
+    prioritizesLethal: false, // Doesn't recognize lethal opportunities
+    usesSynergies: false, // Doesn't use card synergies
+    counterplayAbility: 0.2, // Poor ability to counter player strategies
+    healingPriority: 0.3 // Low priority for healing when low on health
   },
   [AIDifficultyTier.VETERAN]: {
     name: "Veteran AI",
@@ -22,13 +27,18 @@ export const aiStrategies: Record<AIDifficultyTier, AIBehavior> = {
     thinkingTime: 1200,
     cardSelectionStrategy: 'value',
     usesCombo: true,
-    recognizesPlayerPatterns: true, // Now recognizes patterns
-    defensiveThreshold: 0.45,
-    aggressiveThreshold: 0.65,
-    manaEfficiency: 0.8, // Improved from 0.7
-    plansTurnsAhead: 2, // Increased from 1
-    specialMoveFrequency: 0.6,
-    adaptsToPreviousPlayerMoves: true
+    recognizesPlayerPatterns: true,
+    defensiveThreshold: 0.45, // Becomes defensive at 45% health
+    aggressiveThreshold: 0.65, // Becomes aggressive at 65% health
+    manaEfficiency: 0.8, // Uses 80% of available mana efficiently
+    plansTurnsAhead: 2, // Plans 2 turns ahead
+    specialMoveFrequency: 0.6, // 60% chance to use special moves
+    adaptsToPreviousPlayerMoves: true,
+    mistakeChance: 0.1, // 10% chance to make a suboptimal move
+    prioritizesLethal: true, // Recognizes and prioritizes lethal opportunities
+    usesSynergies: true, // Uses card synergies
+    counterplayAbility: 0.6, // Good ability to counter player strategies
+    healingPriority: 0.6 // Medium priority for healing when low on health
   },
   [AIDifficultyTier.LEGEND]: {
     name: "Legend AI",
@@ -37,12 +47,17 @@ export const aiStrategies: Record<AIDifficultyTier, AIBehavior> = {
     cardSelectionStrategy: 'situational',
     usesCombo: true,
     recognizesPlayerPatterns: true,
-    defensiveThreshold: 0.5,
-    aggressiveThreshold: 0.7,
-    manaEfficiency: 0.95, // Improved from 0.9
-    plansTurnsAhead: 3, // Increased from 2
-    specialMoveFrequency: 0.9, // Increased from 0.8
-    adaptsToPreviousPlayerMoves: true
+    defensiveThreshold: 0.5, // Becomes defensive at 50% health
+    aggressiveThreshold: 0.7, // Becomes aggressive at 70% health
+    manaEfficiency: 0.95, // Uses 95% of available mana efficiently
+    plansTurnsAhead: 3, // Plans 3 turns ahead
+    specialMoveFrequency: 0.9, // 90% chance to use special moves
+    adaptsToPreviousPlayerMoves: true,
+    mistakeChance: 0.02, // Only 2% chance to make a suboptimal move
+    prioritizesLethal: true, // Always recognizes and prioritizes lethal opportunities
+    usesSynergies: true, // Uses complex card synergies
+    counterplayAbility: 0.9, // Excellent ability to counter player strategies
+    healingPriority: 0.8 // High priority for healing when low on health
   }
 };
 
@@ -312,39 +327,98 @@ export const selectCardLegend = (
 
 // Function to enhance AI cards based on difficulty
 export const enhanceAICards = (cards: GameCardType[], difficulty: AIDifficultyTier): GameCardType[] => {
+  const behavior = aiStrategies[difficulty];
+
   switch (difficulty) {
     case AIDifficultyTier.NOVICE:
-      return cards.map(card => ({
-        ...card,
-        attack: card.attack ? Math.max(1, Math.floor(card.attack * 0.85)) : undefined, // Slightly stronger than before
-        defense: card.defense ? Math.max(1, Math.floor(card.defense * 0.85)) : undefined
-      }));
+      return cards.map(card => {
+        // Novice AI gets slightly weaker cards
+        const enhancedCard = {
+          ...card,
+          attack: card.attack ? Math.max(1, Math.floor(card.attack * 0.85)) : undefined,
+          defense: card.defense ? Math.max(1, Math.floor(card.defense * 0.85)) : undefined,
+          // Add a small chance for special effects on common cards
+          specialEffect: card.specialEffect || (card.rarity === 'common' && Math.random() > 0.9 ? {
+            description: "Novice Enhancement",
+            effectType: 'BUFF',
+            value: 1,
+            duration: 1
+          } : undefined)
+        };
+
+        // Add a unique identifier to track AI cards
+        return {
+          ...enhancedCard,
+          id: `${enhancedCard.id}-ai-novice`,
+          aiEnhanced: true,
+          aiDifficulty: AIDifficultyTier.NOVICE
+        };
+      });
 
     case AIDifficultyTier.VETERAN:
-      return cards.map(card => ({
-        ...card,
-        attack: card.attack ? Math.floor(card.attack * 1.1) : undefined, // 10% boost
-        defense: card.defense ? Math.floor(card.defense * 1.1) : undefined,
-        specialEffect: card.specialEffect || (Math.random() > 0.8 ? {
-          description: "Veteran's Enhancement",
-          effectType: 'BUFF',
-          value: Math.floor(Math.random() * 2) + 1,
-          duration: 1
-        } : undefined)
-      }));
+      return cards.map(card => {
+        // Veteran AI gets moderately stronger cards
+        const enhancedCard = {
+          ...card,
+          attack: card.attack ? Math.floor(card.attack * 1.15) : undefined, // 15% boost
+          defense: card.defense ? Math.floor(card.defense * 1.15) : undefined,
+          // Add a moderate chance for special effects
+          specialEffect: card.specialEffect || (Math.random() > 0.7 ? {
+            description: "Veteran's Enhancement",
+            effectType: getRandomEffectType(),
+            value: Math.floor(Math.random() * 2) + 1,
+            duration: 1
+          } : undefined),
+          // Add synergy bonuses for certain card types
+          synergy: Math.random() > 0.6 ? {
+            type: card.type,
+            bonus: Math.floor(Math.random() * 2) + 1
+          } : undefined
+        };
+
+        // Add a unique identifier to track AI cards
+        return {
+          ...enhancedCard,
+          id: `${enhancedCard.id}-ai-veteran`,
+          aiEnhanced: true,
+          aiDifficulty: AIDifficultyTier.VETERAN
+        };
+      });
 
     case AIDifficultyTier.LEGEND:
-      return cards.map(card => ({
-        ...card,
-        attack: card.attack ? Math.floor(card.attack * 1.25) : undefined, // 25% boost
-        defense: card.defense ? Math.floor(card.defense * 1.25) : undefined,
-        specialEffect: card.specialEffect || (Math.random() > 0.6 ? {
-          description: getLegendarySpecialEffect(card),
-          effectType: getRandomEffectType(),
-          value: Math.floor(Math.random() * 3) + 2,
-          duration: Math.floor(Math.random() * 2) + 1
-        } : undefined)
-      }));
+      return cards.map(card => {
+        // Legend AI gets significantly stronger cards
+        const enhancedCard = {
+          ...card,
+          attack: card.attack ? Math.floor(card.attack * 1.3) : undefined, // 30% boost
+          defense: card.defense ? Math.floor(card.defense * 1.3) : undefined,
+          // Add a high chance for powerful special effects
+          specialEffect: card.specialEffect || (Math.random() > 0.5 ? {
+            description: getLegendarySpecialEffect(card),
+            effectType: getRandomEffectType(),
+            value: Math.floor(Math.random() * 3) + 2,
+            duration: Math.floor(Math.random() * 2) + 1
+          } : undefined),
+          // Add synergy bonuses for all cards
+          synergy: {
+            type: card.type,
+            bonus: Math.floor(Math.random() * 3) + 2
+          },
+          // Add combo potential
+          comboPotential: Math.random() > 0.7 ? {
+            description: "Triggers a powerful combo effect when played after a matching card",
+            multiplier: 1.5 + (Math.random() * 0.5)
+          } : undefined
+        };
+
+        // Add a unique identifier to track AI cards
+        return {
+          ...enhancedCard,
+          id: `${enhancedCard.id}-ai-legend`,
+          aiEnhanced: true,
+          aiDifficulty: AIDifficultyTier.LEGEND
+        };
+      });
 
     default:
       return cards;

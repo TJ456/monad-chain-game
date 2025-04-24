@@ -57,24 +57,18 @@ const BurnToEvolve: React.FC = () => {
     const defaultName = baseRarity === CardRarity.EPIC ? "Inferno Leviathan" :
                         baseRarity === CardRarity.RARE ? "Flame Colossus" : "Phoenix Guardian";
 
-    // Use custom values if provided, otherwise use calculated values
+    // Always use the custom values provided by the user
     const cardName = customCardName || defaultName;
     const cardDescription = customCardDescription || "Born from the ashes of sacrifice";
     const cardType = customCardType as any || "attack";
 
-    // Calculate attack/defense/mana based on sliders
-    // If custom values are 0, use the calculated values
-    const attackValue = customAttackPower > 0 ?
-      Math.round(totalAttack * (1 + customAttackPower/100)) :
-      Math.round(totalAttack * 1.5);
+    // Calculate attack/defense/mana based on sliders - always use the custom values
+    const attackValue = Math.round(totalAttack * (1 + customAttackPower/100));
 
-    const defenseValue = customDefensePower > 0 ?
-      Math.round(totalDefense * (1 + customDefensePower/100)) :
-      Math.round(totalDefense * 1.5) || undefined;
+    const defenseValue = Math.round(totalDefense * (1 + customDefensePower/100)) || undefined;
 
-    const manaValue = customManaCost > 0 ?
-      Math.round(avgMana * (1 + customManaCost/100)) :
-      Math.round(avgMana * 1.2);
+    // For mana, use the custom value but ensure it's not negative
+    const manaValue = Math.max(1, Math.round(avgMana * (1 + customManaCost/100)));
 
     // Base evolved card template
     const baseEvolved: GameCardType = {
@@ -110,8 +104,8 @@ const BurnToEvolve: React.FC = () => {
     return baseEvolved;
   };
 
-  // Initialize component with latest data from localStorage if available
-  useEffect(() => {
+  // Function to load the latest cards from localStorage
+  const loadLatestCards = () => {
     try {
       const savedCards = localStorage.getItem('playerCards');
       if (savedCards) {
@@ -120,7 +114,12 @@ const BurnToEvolve: React.FC = () => {
         if (JSON.stringify(parsedCards) !== JSON.stringify(currentPlayer.cards)) {
           currentPlayer.cards = parsedCards;
           setPlayerDeck([...parsedCards]);
+          console.log("Updated player deck from localStorage:", parsedCards);
         }
+      } else {
+        // If no saved cards in localStorage, use the current player's cards
+        setPlayerDeck([...currentPlayer.cards]);
+        console.log("Using current player cards:", currentPlayer.cards);
       }
 
       const savedMonad = localStorage.getItem('playerMonad');
@@ -129,13 +128,37 @@ const BurnToEvolve: React.FC = () => {
         if (!isNaN(parsedMonad) && parsedMonad !== currentPlayer.monad) {
           currentPlayer.monad = parsedMonad;
           setPlayerMonad(parsedMonad);
+          console.log("Updated player monad from localStorage:", parsedMonad);
         }
       }
-
-      // We'll show the notification about minimum card requirement only when needed during card selection
     } catch (error) {
       console.error('Error loading saved player data:', error);
     }
+  };
+
+  // Initialize component with latest data from localStorage when component mounts
+  useEffect(() => {
+    loadLatestCards();
+    // We'll show the notification about minimum card requirement only when needed during card selection
+  }, []);
+
+  // Add an effect to refresh the cards when the component becomes visible
+  useEffect(() => {
+    // Create a function to handle visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("Component became visible, refreshing cards...");
+        loadLatestCards();
+      }
+    };
+
+    // Add event listener for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Clean up the event listener when component unmounts
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Update potential evolved card whenever selected cards change
@@ -168,10 +191,29 @@ const BurnToEvolve: React.FC = () => {
   };
 
   const openInventoryDialog = () => {
+    // Always reload the latest cards from localStorage before opening the dialog
+    loadLatestCards();
+
+    // Log the current state of the player deck for debugging
+    console.log("Opening inventory dialog with cards:", playerDeck);
+
+    // Force refresh from localStorage to ensure we have the absolute latest data
+    try {
+      const savedCards = localStorage.getItem('playerCards');
+      if (savedCards) {
+        const parsedCards = JSON.parse(savedCards);
+        console.log("Latest cards from localStorage:", parsedCards);
+        currentPlayer.cards = parsedCards;
+        setPlayerDeck([...parsedCards]);
+      }
+    } catch (error) {
+      console.error('Error loading saved player data:', error);
+    }
+
     setShowInventoryDialog(true);
 
     // Show the burn-to-evolve notification only when the user is actively trying to select cards
-    if (currentPlayer.cards.length <= 5) {
+    if (currentPlayer.cards.filter(card => card.status !== CardStatus.BURNT).length <= 5) {
       toast.info(
         "You need at least 3 cards to play the game",
         {
@@ -266,9 +308,9 @@ const BurnToEvolve: React.FC = () => {
         description: "Creating new evolved card..."
       });
 
-      // Deduct MONAD cost
-      setPlayerMonad(prev => prev - 5);
-      currentPlayer.monad -= 5;
+      // No MONAD cost
+      // setPlayerMonad(prev => prev - 0);
+      // currentPlayer.monad -= 0;
 
       setTimeout(() => {
         // Add evolved card to player's deck (local state)
@@ -726,34 +768,50 @@ const BurnToEvolve: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 my-6">
-                {playerDeck.map((card) => (
-                  <div
-                    key={card.id}
-                    onClick={() => handleCardSelect(card)}
-                    className={`cursor-pointer transition-all duration-300 ${selectedCards.some(c => c.id === card.id) ?
-                      'ring-2 ring-orange-500 scale-105 shadow-lg shadow-orange-500/20' :
-                      'opacity-80 hover:opacity-100 hover:shadow-md hover:shadow-orange-500/10'}`}
-                  >
-                    <div className="relative">
-                      <GameCard card={card} showDetails={true} />
-                      {selectedCards.some(c => c.id === card.id) && (
-                        <div className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20">
-                          {selectedCards.findIndex(c => c.id === card.id) + 1}
+                {playerDeck
+                  .filter(card => card.status !== CardStatus.BURNT) // Only show active cards
+                  .length > 0 ? (
+                    playerDeck
+                      .filter(card => card.status !== CardStatus.BURNT) // Only show active cards
+                      .map((card) => (
+                        <div
+                          key={card.id}
+                          onClick={() => handleCardSelect(card)}
+                          className={`cursor-pointer transition-all duration-300 ${selectedCards.some(c => c.id === card.id) ?
+                            'ring-2 ring-orange-500 scale-105 shadow-lg shadow-orange-500/20' :
+                            'opacity-80 hover:opacity-100 hover:shadow-md hover:shadow-orange-500/10'}`}
+                        >
+                          <div className="relative">
+                            <GameCard card={card} showDetails={true} />
+                            {selectedCards.some(c => c.id === card.id) && (
+                              <div className="absolute top-2 right-2 bg-orange-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md z-20">
+                                {selectedCards.findIndex(c => c.id === card.id) + 1}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 p-2 bg-black/40 rounded-md">
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs capitalize font-semibold ${card.rarity === CardRarity.COMMON ? 'text-gray-400' : card.rarity === CardRarity.RARE ? 'text-blue-400' : card.rarity === CardRarity.EPIC ? 'text-purple-400' : 'text-yellow-400'}`}>
+                                {card.rarity}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                Power: <span className="text-white">{card.attack || 0}</span>
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="mt-2 p-2 bg-black/40 rounded-md">
-                      <div className="flex justify-between items-center">
-                        <span className={`text-xs capitalize font-semibold ${card.rarity === CardRarity.COMMON ? 'text-gray-400' : card.rarity === CardRarity.RARE ? 'text-blue-400' : card.rarity === CardRarity.EPIC ? 'text-purple-400' : 'text-yellow-400'}`}>
-                          {card.rarity}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          Power: <span className="text-white">{card.attack || 0}</span>
-                        </span>
+                      ))
+                  ) : (
+                    <div className="col-span-4 flex flex-col items-center justify-center p-8 bg-black/30 rounded-lg border border-orange-500/20">
+                      <div className="w-16 h-16 rounded-full bg-orange-900/30 flex items-center justify-center mb-4">
+                        <Flame className="h-8 w-8 text-orange-400" />
                       </div>
+                      <h3 className="text-lg font-semibold text-white mb-2">No Cards Available</h3>
+                      <p className="text-sm text-gray-400 text-center max-w-sm">
+                        You don't have any active cards to burn. Acquire more cards from the marketplace or by winning battles.
+                      </p>
                     </div>
-                  </div>
-                ))}
+                  )}
               </div>
 
               <DialogFooter>
@@ -820,14 +878,14 @@ const BurnToEvolve: React.FC = () => {
                 <div className="text-sm text-orange-300 font-medium">Burn Transaction Fee</div>
                 <div className="text-xs text-gray-400">Paid to Monad blockchain for evolution</div>
               </div>
-              <span className="text-xl font-bold text-orange-400">5 <span className="text-sm">MONAD</span></span>
+              <span className="text-xl font-bold text-orange-400">0 <span className="text-sm">MONAD</span></span>
             </div>
           </div>
 
           <Button
             className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-14 text-lg font-bold shadow-md shadow-orange-900/20 transition-all duration-300 hover:shadow-lg hover:shadow-orange-900/30 group relative overflow-hidden"
             onClick={handleBurn}
-            disabled={isProcessing || selectedCards.length < 2 || playerMonad < 5}
+            disabled={isProcessing || selectedCards.length < 2}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/20 to-red-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <span className="relative z-10 flex items-center justify-center">
@@ -842,13 +900,6 @@ const BurnToEvolve: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                   Select 2 Cards
-                </>
-              ) : playerMonad < 5 ? (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Need 5 MONAD
                 </>
               ) : (
                 <>
@@ -947,12 +998,24 @@ const BurnToEvolve: React.FC = () => {
             </div>
           </div>
 
-          <Button
-            className="w-full bg-gradient-to-r from-orange-600 to-red-600"
-            onClick={resetBurn}
-          >
-            Evolve More Cards
-          </Button>
+          <div className="flex flex-col space-y-3">
+            <Button
+              className="w-full bg-gradient-to-r from-orange-600 to-red-600"
+              onClick={resetBurn}
+            >
+              Evolve More Cards
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
+              onClick={() => {
+                window.location.href = "/profile";
+              }}
+            >
+              View in Profile
+            </Button>
+          </div>
         </>
       )}
 
@@ -1048,9 +1111,18 @@ const BurnToEvolve: React.FC = () => {
             ))}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row gap-3">
             <Button
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              variant="outline"
+              className="flex-1 border-blue-500/30 text-blue-400 hover:bg-blue-950/30"
+              onClick={() => {
+                window.location.href = "/profile";
+              }}
+            >
+              View in Profile
+            </Button>
+            <Button
+              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
               onClick={() => setShowUpdatedInventoryDialog(false)}
             >
               Close
