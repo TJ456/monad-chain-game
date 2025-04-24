@@ -83,6 +83,18 @@ export interface Card {
     magnitude: number;
     source?: string; // ID of the card or effect that applied this effect
   }[];
+
+  // New properties for enhanced AI cards
+  aiEnhanced?: boolean;
+  aiDifficulty?: AIDifficultyTier;
+  synergy?: {
+    type: string;
+    bonus: number;
+  };
+  comboPotential?: {
+    description: string;
+    multiplier: number;
+  };
 }
 
 export interface Player {
@@ -306,6 +318,11 @@ export interface AIBehavior {
   plansTurnsAhead: number; // How many turns ahead the AI plans
   specialMoveFrequency: number; // 0-1 probability of using special moves when available
   adaptsToPreviousPlayerMoves: boolean;
+  mistakeChance: number; // 0-1 probability of making a suboptimal move
+  prioritizesLethal: boolean; // Whether AI recognizes and prioritizes lethal opportunities
+  usesSynergies: boolean; // Whether AI uses card synergies
+  counterplayAbility: number; // 0-1 rating of how well AI counters player strategies
+  healingPriority: number; // 0-1 rating of how much AI prioritizes healing when low on health
 }
 
 export interface TierRequirement {
