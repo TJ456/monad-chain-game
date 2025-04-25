@@ -14,15 +14,17 @@
 
 ## 📌 Problem Statement
 
-**Problem Statement 7 – Transform the Future of Rural Commerce**
-
-We're revolutionizing rural commerce by bringing blockchain gaming to underserved communities, creating new economic opportunities through digital engagement.
+**Problem Statement 2 - Unleash blockchain gameplay with Monad**
 
 ---
 
 ## 🎯 Objective & Innovation
 
-MONAD Chain Game is a cutting-edge blockchain-based trading card game that showcases the full power of MONAD's revolutionary blockchain architecture. Our game leverages:
+Create an engaging blockchain game on Monad that provides a fun and innovative player experience, leveraging blockchain features for gameplay mechanics.
+
+**Mandatory tech:**
+
+Monad should be utilized in this project
 
 - **⚡ Parallel Execution Engine**: Execute multiple game moves simultaneously, achieving 50-100x faster gameplay than traditional blockchain games
 - **🔄 StateSync Technology**: Synchronize game states with minimal bandwidth, perfect for rural areas with limited connectivity
