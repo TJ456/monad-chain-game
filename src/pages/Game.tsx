@@ -4,6 +4,7 @@ import { Card as UICard } from "@/components/ui/card";
 import GameCard from '@/components/GameCard';
 import MonadStatus from '@/components/MonadStatus';
 import MonadDbStatus from '@/components/MonadDbStatus';
+import { ConsensusStatus } from '@/components/ConsensusStatus';
 import ShardManager from '@/components/ShardManager';
 import MonadBoostMechanic from '@/components/MonadBoostMechanic';
 import GameRoomSelector from '@/components/GameRoomSelector';
@@ -179,6 +180,23 @@ const Game = () => {
       try {
         await monadDbIntegration.initialize();
         console.log('MonadDb integration initialized');
+
+        // Initialize consensus services for health check
+        try {
+          const { initializeServices, areServicesInitialized } = await import('@/services/initServices');
+          const initialized = await areServicesInitialized(false);
+
+          if (!initialized) {
+            console.log('Initializing consensus services for health check...');
+            await initializeServices(false);
+            console.log('Consensus services initialized successfully');
+          } else {
+            console.log('Consensus services already initialized');
+          }
+        } catch (consensusError) {
+          console.error('Error initializing consensus services:', consensusError);
+          // Continue even if consensus initialization fails
+        }
       } catch (error) {
         console.error('Error initializing MonadDb:', error);
       }
@@ -299,7 +317,7 @@ const Game = () => {
       wsService.disconnect();
 
       // Remove card copied listener
-      monadGameService.removeCardCopiedListener((copiedCard) => {
+      monadGameService.removeCardCopiedListener(() => {
         console.log('Removing card copied listener');
       });
     };
@@ -325,10 +343,7 @@ const Game = () => {
     }
   };
 
-  const handleRoomCreated = (room: GameRoom) => {
-    setCurrentRoom(room);
-    // Room creation is handled by the GameRoomManager component
-  };
+  // Room creation is handled by the GameRoomManager component
 
   const handleGameRoomStart = () => {
     // When a game starts in game room mode
@@ -585,80 +600,143 @@ const Game = () => {
       return;
     }
 
-    const playableCards = opponentCards.filter(card => card.mana <= opponentMana);
-    console.log("AI playable cards:", playableCards);
+    try {
+      const playableCards = opponentCards.filter(card => card.mana <= opponentMana);
+      console.log("AI playable cards:", playableCards);
 
-    if (playableCards.length > 0) {
-      let cardToPlay: GameCardType;
-      let aiThinkingDelay = aiStrategies[aiDifficulty].thinkingTime;
+      if (playableCards.length > 0) {
+        let cardToPlay: GameCardType;
+        let aiThinkingDelay = aiStrategies[aiDifficulty].thinkingTime;
 
-      // Add AI thinking message to battle log
-      const thinkingMessage = getAIThinkingMessage(aiDifficulty);
-      setBattleLog(prev => [...prev, thinkingMessage]);
+        // Add AI thinking message to battle log
+        const thinkingMessage = getAIThinkingMessage(aiDifficulty);
+        setBattleLog(prev => [...prev, thinkingMessage]);
 
-      // Select card based on difficulty
-      switch (aiDifficulty) {
-        case AIDifficultyTier.NOVICE:
-          // Novice AI uses random selection
-          cardToPlay = selectCardNovice(playableCards, playerHealth, opponentHealth);
-          break;
+        try {
+          // Select card based on difficulty
+          switch (aiDifficulty) {
+            case AIDifficultyTier.NOVICE:
+              cardToPlay = selectCardNovice(playableCards, playerHealth, opponentHealth);
+              break;
 
-        case AIDifficultyTier.VETERAN:
-          // Veteran AI uses value-based selection
-          cardToPlay = selectCardVeteran(playableCards, playerHealth, opponentHealth, opponentMana);
-          break;
+            case AIDifficultyTier.VETERAN:
+              cardToPlay = selectCardVeteran(playableCards, playerHealth, opponentHealth, opponentMana);
+              break;
 
-        case AIDifficultyTier.LEGEND:
-          // Legend AI uses situational strategy
-          cardToPlay = selectCardLegend(
-            playableCards,
-            playerHealth,
-            opponentHealth,
-            opponentMana,
-            playerDeck,
-            selectedCard // Pass the player's last played card
-          );
-          break;
+            case AIDifficultyTier.LEGEND:
+              cardToPlay = selectCardLegend(
+                playableCards,
+                playerHealth,
+                opponentHealth,
+                opponentMana,
+                playerDeck,
+                selectedCard
+              );
+              break;
 
-        default:
-          cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
-      }
+            default:
+              cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
+          }
 
-      setTimeout(() => {
-        console.log("AI playing card:", cardToPlay);
+          if (!cardToPlay || !cardToPlay.id) {
+            throw new Error('Invalid card selected by AI');
+          }
 
-        setOpponentMana(prev => prev - cardToPlay.mana);
-        setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
+          setTimeout(() => {
+            try {
+              console.log("AI playing card:", cardToPlay);
 
-        let newPlayerHealth = playerHealth;
-        let newOpponentHealth = opponentHealth;
-        let logEntry = `Opponent played ${cardToPlay.name}.`;
+              // Update game state atomically
+              setOpponentMana(prev => {
+                const newMana = prev - cardToPlay.mana;
+                if (newMana < 0) throw new Error('Insufficient mana');
+                return newMana;
+              });
 
-        if (cardToPlay.attack) {
-          newPlayerHealth = Math.max(0, playerHealth - cardToPlay.attack);
-          logEntry += ` Dealt ${cardToPlay.attack} damage.`;
+              setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
+
+              // Record game event for consensus metrics
+              recordGameEvent({
+                type: 'card_play',
+                cardId: cardToPlay.id,
+                cardName: cardToPlay.name,
+                timestamp: Date.now(),
+                responseTime: Math.floor(Math.random() * 150) + 100, // Simulate response time between 100-250ms
+                player: 'opponent',
+                agreement: Math.random() * 20 + 75 // Random agreement between 75-95%
+              }).catch(error => {
+                console.error('Failed to record opponent game event:', error);
+                // Continue with the game even if recording fails
+              });
+
+              let newPlayerHealth = playerHealth;
+              let newOpponentHealth = opponentHealth;
+              let logEntry = `Opponent played ${cardToPlay.name}.`;
+
+              // Apply card effects
+              if (cardToPlay.attack) {
+                const damage = cardToPlay.attack;
+                newPlayerHealth = Math.max(0, playerHealth - damage);
+                logEntry += ` Dealt ${damage} damage.`;
+              }
+
+              if (cardToPlay.defense) {
+                const healing = Math.min(cardToPlay.defense, 30 - opponentHealth);
+                newOpponentHealth = opponentHealth + healing;
+                logEntry += ` Gained ${healing} health.`;
+              }
+
+              // Handle special effects
+              if (cardToPlay.type === CardType.UTILITY) {
+                if (cardToPlay.specialEffect?.effectType === 'STUN') {
+                  setPlayerStunned(true);
+                  logEntry += ' Player is stunned!';
+                } else if (cardToPlay.specialEffect?.effectType === 'LEECH') {
+                  const healAmount = Math.min(5, 30 - newOpponentHealth);
+                  newOpponentHealth += healAmount;
+                  logEntry += ` Healed for ${healAmount}.`;
+                }
+              }
+
+              // Update health states
+              setPlayerHealth(newPlayerHealth);
+              setOpponentHealth(newOpponentHealth);
+              setBattleLog(prev => [...prev, logEntry]);
+
+              // Check win condition
+              if (newPlayerHealth <= 0) {
+                endGame(false);
+                return;
+              }
+
+              // Update AI combo counter
+              if (cardToPlay.type === CardType.ATTACK) {
+                setAiComboCounter(prev => prev + 1);
+              } else {
+                setAiComboCounter(0);
+              }
+
+              endTurn('player');
+            } catch (error) {
+              console.error('Error during AI turn execution:', error);
+              setBattleLog(prev => [...prev, 'AI encountered an error. Skipping turn.']);
+              endTurn('player');
+            }
+          }, aiThinkingDelay);
+        } catch (error) {
+          console.error('Error during AI card selection:', error);
+          setBattleLog(prev => [...prev, 'AI encountered an error. Skipping turn.']);
+          endTurn('player');
         }
-
-        if (cardToPlay.defense) {
-          newOpponentHealth = Math.min(30, opponentHealth + cardToPlay.defense);
-          logEntry += ` Gained ${cardToPlay.defense} health.`;
-        }
-
-        setPlayerHealth(newPlayerHealth);
-        setOpponentHealth(newOpponentHealth);
-        setBattleLog(prev => [...prev, logEntry]);
-
-        if (newPlayerHealth <= 0) {
-          endGame(false);
-          return;
-        }
-
+      } else if (opponentCards.length === 0) {
+        handleFatigue('opponent');
+      } else {
+        setBattleLog(prev => [...prev, "Opponent passes (no playable cards)"]);
         endTurn('player');
-      }, aiThinkingDelay);
-    } else if (opponentCards.length === 0) {
-      handleFatigue('opponent');
-    } else {
-      setBattleLog(prev => [...prev, "Opponent passes (no playable cards)"]);
+      }
+    } catch (error) {
+      console.error('Error in handleOpponentTurn:', error);
+      setBattleLog(prev => [...prev, 'AI encountered an error. Skipping turn.']);
       endTurn('player');
     }
   }
@@ -839,10 +917,66 @@ const Game = () => {
     endTurn(target === 'player' ? 'opponent' : 'player');
   };
 
+  // Function to record game events for consensus metrics
+  const recordGameEvent = async (eventData: {
+    type: string;
+    cardId?: string;
+    cardName?: string;
+    timestamp: number;
+    responseTime: number;
+    player: 'player' | 'opponent' | 'draw';
+    agreement: number;
+  }) => {
+    try {
+      // Store the event in localStorage for consensus metrics
+      const gameEvents = JSON.parse(localStorage.getItem('monad:game:events') || '[]');
+      gameEvents.push({
+        ...eventData,
+        id: `game-event-${Date.now()}`,
+        gameId: currentRoom?.roomCode || 'practice-game',
+      });
+
+      // Keep only the last 100 events
+      if (gameEvents.length > 100) {
+        gameEvents.shift();
+      }
+
+      localStorage.setItem('monad:game:events', JSON.stringify(gameEvents));
+
+      // Dispatch a custom event to notify components about the game event update
+      const updateEvent = new CustomEvent('game-event-update', {
+        detail: { type: eventData.type, timestamp: eventData.timestamp }
+      });
+      window.dispatchEvent(updateEvent);
+
+      console.log('Game event recorded for consensus metrics:', eventData);
+      return true;
+    } catch (error) {
+      console.error('Failed to record game event:', error);
+      return false;
+    }
+  };
+
   const playCard = async (card: GameCardType) => {
     if (!walletConnected) {
         toast.error("Please connect your wallet first");
         return;
+    }
+
+    // Record game event for consensus metrics
+    try {
+      await recordGameEvent({
+        type: 'card_play',
+        cardId: card.id,
+        cardName: card.name,
+        timestamp: Date.now(),
+        responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time between 50-150ms
+        player: 'player',
+        agreement: Math.random() * 30 + 70 // Random agreement between 70-100%
+      });
+    } catch (error) {
+      console.error('Failed to record game event:', error);
+      // Continue with the game even if recording fails
     }
 
     // Check if player is registered in localStorage if the isRegistered state is false
@@ -1344,6 +1478,17 @@ const Game = () => {
         }
     }
 
+    // Record game completion event for consensus metrics
+    recordGameEvent({
+      type: 'game_end',
+      timestamp: Date.now(),
+      responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time
+      player: playerWon === true ? 'player' : playerWon === false ? 'opponent' : 'draw',
+      agreement: Math.random() * 10 + 90 // High agreement for game end (90-100%)
+    }).catch(error => {
+      console.error('Failed to record game end event:', error);
+    });
+
     try {
         // Show transaction pending state
         setIsTransactionPending(true);
@@ -1516,9 +1661,7 @@ const Game = () => {
             // Only award consolation shards if the player put up a good fight
             if (pendingMoves.length >= 3) {
                 // Submit game result and claim consolation shards
-                const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
-                const shardTxHash = shardResult.txHash;
-                const shardBlockNumber = shardResult.blockNumber;
+                await monadGameService.claimShards(movesBatch.batchId, gameResult);
 
                 // Update player's MONAD balance and shards
                 setPlayerMonadBalance(prev => prev + consolationShards);
@@ -1538,9 +1681,7 @@ const Game = () => {
             const drawShards = Math.floor(getShardReward() / 2);
 
             // Submit game result and claim draw shards
-            const shardResult = await monadGameService.claimShards(movesBatch.batchId, gameResult);
-            const shardTxHash = shardResult.txHash;
-            const shardBlockNumber = shardResult.blockNumber;
+            await monadGameService.claimShards(movesBatch.batchId, gameResult);
 
             // Update player's MONAD balance and shards
             setPlayerMonadBalance(prev => prev + drawShards);
@@ -1556,16 +1697,16 @@ const Game = () => {
             });
         }
 
-            // Add a button to view the shard transaction in the explorer if available
-            if (shardResult && shardTxHash) {
-                const shardExplorerUrl = getTransactionExplorerUrl(shardTxHash);
+            // Add a button to view the transaction in the explorer if available
+            if (playerWon !== undefined && currentTransaction?.txHash) {
+                const explorerUrl = getTransactionExplorerUrl(currentTransaction.txHash);
                 toast.success(
               <div className="flex flex-col space-y-2">
-                <span>View shard claim on MONAD Explorer</span>
+                <span>View game result on MONAD Explorer</span>
                 <button
                   onClick={() => {
-                    console.log('Opening explorer URL:', shardExplorerUrl);
-                    window.open(shardExplorerUrl, '_blank');
+                    console.log('Opening explorer URL:', explorerUrl);
+                    window.open(explorerUrl, '_blank');
                   }}
                   className="text-xs bg-amber-900/50 hover:bg-amber-800/50 text-amber-400 py-1 px-2 rounded flex items-center justify-center"
                 >
@@ -2019,6 +2160,12 @@ const Game = () => {
                   player={playerData}
                   onRedeemShards={handleShardRedemption}
                 />
+              </div>
+
+              {/* Show MonadStatus and ConsensusStatus in a grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <MonadStatus />
+                <ConsensusStatus />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

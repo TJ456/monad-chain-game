@@ -697,7 +697,7 @@ export class GameConsensusService {
   }
 
   /**
-   * Get consensus statistics
+   * Get consensus statistics with enhanced health metrics
    */
   public async getConsensusStats(): Promise<{
     totalBlocks: number;
@@ -706,6 +706,19 @@ export class GameConsensusService {
     pendingTransactions: number;
     isPrimary: boolean;
     totalShardRewards?: number;
+    healthMetrics: {
+      validatorResponseTimes: number[];
+      networkLatency: number;
+      consensusVerification: {
+        agreementPercentage: number;
+        verifiedBlocks: number;
+        failedConsensusAttempts: number;
+      };
+      blockPropagationTime: number;
+      lastViewChange: number;
+      healthScore: number;
+      status: 'excellent' | 'good' | 'fair' | 'degraded' | 'critical';
+    };
   }> {
     if (!this.isInitialized) {
       // Return default stats if not initialized to prevent errors
@@ -715,7 +728,8 @@ export class GameConsensusService {
         activeValidators: 0,
         pendingTransactions: 0,
         isPrimary: false,
-        totalShardRewards: 0
+        totalShardRewards: 0,
+        healthMetrics: this.getDefaultHealthMetrics()
       };
     }
 
@@ -729,7 +743,8 @@ export class GameConsensusService {
           activeValidators: this.validators.length || 0,
           pendingTransactions: this.pendingTransactions.length || 0,
           isPrimary: false,
-          totalShardRewards: 0
+          totalShardRewards: 0,
+          healthMetrics: this.getDefaultHealthMetrics()
         };
       }
 
@@ -748,13 +763,17 @@ export class GameConsensusService {
         // Continue without rewards data
       }
 
+      // Calculate health metrics
+      const healthMetrics = await this.calculateHealthMetrics(blocks);
+
       return {
         totalBlocks: blocks.length,
         lastBlockTime: this.lastBlockTime,
         activeValidators: this.validators.length,
         pendingTransactions: this.pendingTransactions.length,
         isPrimary: this.isPrimaryValidator(),
-        totalShardRewards
+        totalShardRewards,
+        healthMetrics
       };
     } catch (error) {
       console.error('Error getting consensus stats:', error);
@@ -765,9 +784,204 @@ export class GameConsensusService {
         activeValidators: this.validators.length || 0,
         pendingTransactions: this.pendingTransactions.length || 0,
         isPrimary: false,
-        totalShardRewards: 0
+        totalShardRewards: 0,
+        healthMetrics: this.getDefaultHealthMetrics()
       };
     }
+  }
+
+  /**
+   * Calculate health metrics based on consensus data
+   */
+  private async calculateHealthMetrics(blocks: GameConsensusBlock[]): Promise<{
+    validatorResponseTimes: number[];
+    networkLatency: number;
+    consensusVerification: {
+      agreementPercentage: number;
+      verifiedBlocks: number;
+      failedConsensusAttempts: number;
+    };
+    blockPropagationTime: number;
+    lastViewChange: number;
+    healthScore: number;
+    status: 'excellent' | 'good' | 'fair' | 'degraded' | 'critical';
+  }> {
+    // Default metrics
+    const metrics = this.getDefaultHealthMetrics();
+
+    try {
+      // If no blocks, return default metrics
+      if (!blocks || blocks.length === 0) {
+        return metrics;
+      }
+
+      // Get consensus messages to analyze response times
+      const consensusMessages = await monadDb.getAllInNamespace(this.GAME_CONSENSUS_NAMESPACE);
+
+      // Calculate validator response times
+      const responseTimes: number[] = [];
+      const messagesByValidator: Record<string, any[]> = {};
+
+      // Group messages by validator
+      consensusMessages.forEach(message => {
+        if (message.sender && message.timestamp) {
+          if (!messagesByValidator[message.sender]) {
+            messagesByValidator[message.sender] = [];
+          }
+          messagesByValidator[message.sender].push(message);
+        }
+      });
+
+      // Calculate average response time for each validator
+      Object.values(messagesByValidator).forEach(messages => {
+        if (messages.length > 1) {
+          // Sort by timestamp
+          messages.sort((a, b) => a.timestamp - b.timestamp);
+
+          // Calculate average time between messages
+          let totalTime = 0;
+          for (let i = 1; i < messages.length; i++) {
+            totalTime += messages[i].timestamp - messages[i-1].timestamp;
+          }
+
+          const avgTime = totalTime / (messages.length - 1);
+          responseTimes.push(avgTime);
+        }
+      });
+
+      // Calculate network latency based on block propagation
+      let totalPropagationTime = 0;
+      let propagationSamples = 0;
+
+      // Analyze blocks to determine propagation time
+      for (let i = 1; i < blocks.length; i++) {
+        const currentBlock = blocks[i];
+        const prevBlock = blocks[i-1];
+
+        if (currentBlock.timestamp && prevBlock.timestamp) {
+          const propagationTime = currentBlock.timestamp - prevBlock.timestamp - this.config.blockTime;
+          if (propagationTime > 0) {
+            totalPropagationTime += propagationTime;
+            propagationSamples++;
+          }
+        }
+      }
+
+      const avgPropagationTime = propagationSamples > 0 ? totalPropagationTime / propagationSamples : 0;
+
+      // Calculate consensus verification metrics
+      let verifiedBlocks = 0;
+      let totalSignatures = 0;
+
+      blocks.forEach(block => {
+        if (block.validatorSignatures) {
+          const signatureCount = Object.keys(block.validatorSignatures).length;
+          totalSignatures += signatureCount;
+
+          // A block is considered verified if it has signatures from 2/3+ of validators
+          const requiredSignatures = Math.floor((2 * this.validators.length) / 3) + 1;
+          if (signatureCount >= requiredSignatures) {
+            verifiedBlocks++;
+          }
+        }
+      });
+
+      const agreementPercentage = blocks.length > 0 ?
+        (totalSignatures / (blocks.length * this.validators.length)) * 100 : 0;
+
+      // Estimate failed consensus attempts by looking at view changes
+      let failedAttempts = 0;
+      let lastViewChange = 0;
+
+      if (blocks.length > 0) {
+        // Sort blocks by number
+        const sortedBlocks = [...blocks].sort((a, b) => a.number - b.number);
+
+        // Count view changes
+        for (let i = 1; i < sortedBlocks.length; i++) {
+          if (sortedBlocks[i].viewNumber !== sortedBlocks[i-1].viewNumber) {
+            failedAttempts++;
+            lastViewChange = sortedBlocks[i].timestamp || Date.now();
+          }
+        }
+      }
+
+      // Update metrics with calculated values
+      metrics.validatorResponseTimes = responseTimes;
+      metrics.networkLatency = Math.max(1, Math.min(5000, avgPropagationTime)); // Cap between 1-5000ms
+      metrics.consensusVerification = {
+        agreementPercentage: Math.min(100, Math.max(0, agreementPercentage)),
+        verifiedBlocks,
+        failedConsensusAttempts: failedAttempts
+      };
+      metrics.blockPropagationTime = Math.max(1, Math.min(10000, avgPropagationTime)); // Cap between 1-10000ms
+      metrics.lastViewChange = lastViewChange;
+
+      // Calculate overall health score (0-100)
+      const latencyScore = Math.max(0, 100 - (metrics.networkLatency / 50)); // Lower is better
+      const agreementScore = metrics.consensusVerification.agreementPercentage;
+      const propagationScore = Math.max(0, 100 - (metrics.blockPropagationTime / 100)); // Lower is better
+      const failureScore = Math.max(0, 100 - (failedAttempts * 10)); // Lower is better
+
+      // Weighted average of scores
+      const healthScore = (
+        latencyScore * 0.3 +
+        agreementScore * 0.4 +
+        propagationScore * 0.2 +
+        failureScore * 0.1
+      );
+
+      metrics.healthScore = Math.min(100, Math.max(0, healthScore));
+
+      // Determine status based on health score
+      if (metrics.healthScore >= 90) {
+        metrics.status = 'excellent';
+      } else if (metrics.healthScore >= 75) {
+        metrics.status = 'good';
+      } else if (metrics.healthScore >= 60) {
+        metrics.status = 'fair';
+      } else if (metrics.healthScore >= 40) {
+        metrics.status = 'degraded';
+      } else {
+        metrics.status = 'critical';
+      }
+
+      return metrics;
+    } catch (error) {
+      console.error('Error calculating health metrics:', error);
+      return metrics;
+    }
+  }
+
+  /**
+   * Get default health metrics
+   */
+  private getDefaultHealthMetrics(): {
+    validatorResponseTimes: number[];
+    networkLatency: number;
+    consensusVerification: {
+      agreementPercentage: number;
+      verifiedBlocks: number;
+      failedConsensusAttempts: number;
+    };
+    blockPropagationTime: number;
+    lastViewChange: number;
+    healthScore: number;
+    status: 'excellent' | 'good' | 'fair' | 'degraded' | 'critical';
+  } {
+    return {
+      validatorResponseTimes: [],
+      networkLatency: 0,
+      consensusVerification: {
+        agreementPercentage: 0,
+        verifiedBlocks: 0,
+        failedConsensusAttempts: 0
+      },
+      blockPropagationTime: 0,
+      lastViewChange: 0,
+      healthScore: 0,
+      status: 'critical'
+    };
   }
 }
 
