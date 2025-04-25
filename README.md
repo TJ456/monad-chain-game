@@ -245,18 +245,6 @@ npm run dev
 npm run server
 ```
 
-### Environment Variables:
-```
-VITE_MONAD_CONTRACT_ADDRESS=0x1234567890AbCdEfGh1234567890AbCdEfGh1234
-VITE_NETWORK_ID=10143
-VITE_NETWORK_NAME=MONAD_TESTNET
-VITE_API_URL=https://testnet-api.monad.xyz
-VITE_INDEXER_URL=https://testnet-indexer.monad.xyz
-VITE_ENABLE_TOURNAMENTS=true
-VITE_ENABLE_COMPOSABLE_CARDS=true
-VITE_ENABLE_PARALLEL_EXECUTION=true
-```
-
 ---
 
 ## 🧬 Future Roadmap
@@ -321,83 +309,49 @@ async function syncGameState(targetBlock: number): Promise<void> {
 ```
 ---
 
+## 📎 Resources / Credits
 
-## 🏁 Final Words
+- **APIs Used**:
+  - Alchemy API for blockchain data indexing
+  - MONAD Testnet RPC endpoints
+  - Infura for fallback node connections
 
-MONAD Chain Game represents the future of blockchain gaming, demonstrating how MONAD's revolutionary technology can create experiences that are not just technically impressive but genuinely fun and accessible. By leveraging parallel execution, StateSync, RaptorCast, and other advanced features, we've built a game that performs at speeds previously thought impossible for blockchain applications.
+- **Documentation**:
+  - [MONAD Developer Documentation](https://docs.monad.xyz/introduction/monad-for-developers)
 
-Our vision extends beyond gaming – we're creating a platform that can bring economic opportunities to rural areas through digital engagement, allowing anyone with even basic internet access to participate in the blockchain economy. The combination of MONAD's high-performance architecture with our optimized implementation creates a seamless experience that feels like a traditional game but with all the benefits of blockchain ownership and verifiability.
+- **Open Source Libraries & Tools**:
+  - OpenZeppelin Contracts (MIT License)
+  - shadcn/ui Component Library (MIT License)
+  - Ethers.js (MIT License)
+  - Hardhat Development Environment (MIT License)
 
-We invite you to join us on this journey to transform both blockchain gaming and rural commerce through the power of MONAD technology.
+- **Design Resources**:
+  - Card artwork created using Midjourney AI
+  - Sound effects from Freesound.org (CC licensed)
+
+- **Special Thanks**:
+  - MONAD team for technical support
+  - EthGlobal community for feedback
+  - All open source contributors
 
 ---
 
-### Data Flow Architecture:
-```mermaid
-graph TD
-    %% Player initiates a game action
-    A[Player Game Action] --> A1[Action Validation]
-    A1 --> A2[Transaction Creation]
-    A2 --> B[MONAD Parallel Execution Engine]
 
-    %% Parallel execution of effects
-    B --> |32 Parallel Ops| C1[Chain Reaction Effect 1]
-    B --> |32 Parallel Ops| C2[Chain Reaction Effect 2]
-    B --> |32 Parallel Ops| C3[Chain Reaction Effect 3]
+## 🏁 Final Words
 
-    %% Effect details
-    C1 --> C1_1[Card Attribute Changes]
-    C1 --> C1_2[Damage Calculation]
-    C2 --> C2_1[Status Effect Application]
-    C2 --> C2_2[Mana Consumption]
-    C3 --> C3_1[Secondary Triggers]
-    C3 --> C3_2[Combo Multipliers]
+**MONAD Chain Game** isn't just another blockchain project—it's a glimpse into the future where blockchain technology seamlessly enhances rather than hinders gameplay. By harnessing MONAD's groundbreaking parallel execution engine, we've shattered the performance barriers that have historically limited blockchain gaming, creating an experience that delivers the speed of traditional games with the unique benefits of on-chain ownership.
 
-    %% State updates
-    C1_1 --> D[Game State Update]
-    C1_2 --> D
-    C2_1 --> D
-    C2_2 --> D
-    C3_1 --> D
-    C3_2 --> D
+What sets our project apart is the thoughtful integration of MONAD's core technologies:
 
-    %% State processing
-    D --> D1[State Compression: 250KB → 12KB]
-    D1 --> D2[State Differential Calculation]
-    D2 --> E[Merkle Tree Generation]
+- **Parallel execution** enables complex card interactions to resolve in milliseconds rather than seconds
+- **StateSync** makes the game playable even in areas with limited connectivity (< 1 Mbps)
+- **RaptorCast** ensures NFT data propagates reliably across the network with 99.9% uptime
+- **Merkle verification** guarantees the integrity of every game state and transaction
 
-    %% Merkle tree details
-    E --> E1[Root Hash Calculation]
-    E1 --> E2[Proof Generation]
-    E2 --> F[StateSync Propagation]
+Beyond technical achievements, we've created a platform that democratizes access to the digital economy. Players in rural areas with basic internet connections can now participate in tournaments, trade valuable NFTs, and earn rewards—all with the same seamless experience as players in urban centers.
 
-    %% StateSync details
-    F --> F1[Chunked State Transfer]
-    F1 --> F2[Bandwidth Optimization]
-    F2 --> F3[State Verification]
-    F3 --> G[RaptorCast Distribution]
+The future of MONAD Chain Game includes mobile-first experiences, cross-chain asset transfers, and community governance. We're not just building a game; we're pioneering a new paradigm where blockchain enhances rather than compromises the gaming experience.
 
-    %% RaptorCast details
-    G --> G1[Erasure Coding: 3x Redundancy]
-    G1 --> G2[P2P Propagation]
-    G2 --> G3[Network Resilience: 99.9% with 40% Node Failure]
-    G3 --> H[On-chain Verification]
+**Join us in revolutionizing blockchain gaming through the power of MONAD technology.**
 
-    %% Verification and finality
-    H --> H1[PBFT Consensus]
-    H1 --> H2[Sub-second Finality]
-    H2 --> H3[Cross-shard Synchronization]
-    H3 --> I[Transaction Complete]
-
-    %% Styling
-    classDef monadCore fill:#3a0ca3,stroke:#4cc9f0,color:#fff,stroke-width:2px;
-    classDef gameLogic fill:#4361ee,stroke:#4cc9f0,color:#fff;
-    classDef dataFlow fill:#7209b7,stroke:#4cc9f0,color:#fff;
-    classDef verification fill:#f72585,stroke:#4cc9f0,color:#fff;
-
-    class B,E1,F2,G1,H1 monadCore;
-    class A,C1,C2,C3,D monadCore;
-    class C1_1,C1_2,C2_1,C2_2,C3_1,C3_2 gameLogic;
-    class D1,D2,E2,F1,F3,G2 dataFlow;
-    class G3,H2,H3,I verification;
-```
+---
