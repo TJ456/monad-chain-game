@@ -40,9 +40,9 @@ By combining these technologies, we've created a game that not only demonstrates
 `404 NOT FOUND1`
 
 ### Team Members:
-- Tanmay Joddar (GitHub: @TJ456 / Role: Lead Developer & Blockchain Architect Smart Contract Engineer & Game Mechanics Designer)
-- Sruti Gupta (GitHub: @SrutiGupta / Role:UI/UX,FRONTEND )
-- Priya Sharma (GitHub: @Aritra203 / Role: Tester and Backend Developer and Blockchain Architect Smart Contract Engineer)
+- Tanmay Joddar (GitHub: [@TJ456](https://github.com/TJ456) / Role: Lead Developer & Blockchain Architect Smart Contract Engineer & Game Mechanics Designer)
+- Sruti Gupta (GitHub: [@SrutiGupta](https://github.com/SrutiGupta) / Role:UI/UX,FRONTEND )
+- Aritra Konar (GitHub: [@Aritra203](https://github.com/Aritra203) / Role: Tester and Backend Developer and Blockchain Architect Smart Contract Engineer)
 
 ### Our Technical Journey:
 - **Challenge**: Creating a blockchain game that works in low-connectivity environments (< 1 Mbps) while maintaining complex game mechanics. We tackled network latency issues by implementing a hybrid state model that combines on-chain verification with off-chain computation, allowing gameplay to continue even during intermittent connectivity.
