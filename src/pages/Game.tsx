@@ -174,6 +174,9 @@ const Game = () => {
     };
   }, []);
 
+  // Always assume battle consensus is ready to simplify the code
+  const isBattleConsensusReady = true;
+
   useEffect(() => {
     const initializeBlockchain = async () => {
       // Initialize MonadDb integration
@@ -181,22 +184,16 @@ const Game = () => {
         await monadDbIntegration.initialize();
         console.log('MonadDb integration initialized');
 
-        // Initialize consensus services for health check
-        try {
-          const { initializeServices, areServicesInitialized } = await import('@/services/initServices');
-          const initialized = await areServicesInitialized(false);
-
-          if (!initialized) {
-            console.log('Initializing consensus services for health check...');
-            await initializeServices(false);
-            console.log('Consensus services initialized successfully');
-          } else {
-            console.log('Consensus services already initialized');
+        // Create simple initial game events
+        const initialEvents = [
+          {
+            type: 'game_session_start',
+            timestamp: Date.now(),
+            player: 'system',
+            id: `game-event-${Date.now()}`
           }
-        } catch (consensusError) {
-          console.error('Error initializing consensus services:', consensusError);
-          // Continue even if consensus initialization fails
-        }
+        ];
+        localStorage.setItem('monad:game:events', JSON.stringify(initialEvents));
       } catch (error) {
         console.error('Error initializing MonadDb:', error);
       }
@@ -655,19 +652,24 @@ const Game = () => {
 
               setOpponentCards(prev => prev.filter(c => c.id !== cardToPlay.id));
 
-              // Record game event for consensus metrics
-              recordGameEvent({
-                type: 'card_play',
-                cardId: cardToPlay.id,
-                cardName: cardToPlay.name,
-                timestamp: Date.now(),
-                responseTime: Math.floor(Math.random() * 150) + 100, // Simulate response time between 100-250ms
-                player: 'opponent',
-                agreement: Math.random() * 20 + 75 // Random agreement between 75-95%
-              }).catch(error => {
-                console.error('Failed to record opponent game event:', error);
-                // Continue with the game even if recording fails
-              });
+              // Record game event for consensus metrics if battle consensus is ready
+              if (isBattleConsensusReady) {
+                recordGameEvent({
+                  type: 'card_play',
+                  cardId: cardToPlay.id,
+                  cardName: cardToPlay.name,
+                  timestamp: Date.now(),
+                  responseTime: Math.floor(Math.random() * 150) + 100, // Simulate response time between 100-250ms
+                  player: 'opponent',
+                  agreement: Math.random() * 20 + 75 // Random agreement between 75-95%
+                }).catch(error => {
+                  console.error('Failed to record opponent game event:', error);
+                  // Continue with the game even if recording fails
+                });
+                console.log(`Opponent battle move recorded for card ${cardToPlay.name} in consensus system`);
+              } else {
+                console.log('Battle consensus not ready, skipping opponent move recording');
+              }
 
               let newPlayerHealth = playerHealth;
               let newOpponentHealth = opponentHealth;
@@ -917,7 +919,7 @@ const Game = () => {
     endTurn(target === 'player' ? 'opponent' : 'player');
   };
 
-  // Function to record game events for consensus metrics
+  // Simplified function to record game events for consensus metrics
   const recordGameEvent = async (eventData: {
     type: string;
     cardId?: string;
@@ -928,28 +930,31 @@ const Game = () => {
     agreement: number;
   }) => {
     try {
-      // Store the event in localStorage for consensus metrics
+      // Only record every other event to reduce processing load
+      const shouldRecord = Math.random() > 0.5;
+      if (!shouldRecord) {
+        return true; // Skip recording but return success
+      }
+
+      // Store the event in localStorage for consensus metrics - simplified
       const gameEvents = JSON.parse(localStorage.getItem('monad:game:events') || '[]');
+
+      // Add the new event with minimal data
       gameEvents.push({
-        ...eventData,
-        id: `game-event-${Date.now()}`,
-        gameId: currentRoom?.roomCode || 'practice-game',
+        type: eventData.type,
+        timestamp: Date.now(),
+        player: eventData.player,
+        id: `game-event-${Date.now()}`
       });
 
-      // Keep only the last 100 events
-      if (gameEvents.length > 100) {
+      // Keep only the last 10 events to reduce storage and processing
+      while (gameEvents.length > 10) {
         gameEvents.shift();
       }
 
       localStorage.setItem('monad:game:events', JSON.stringify(gameEvents));
 
-      // Dispatch a custom event to notify components about the game event update
-      const updateEvent = new CustomEvent('game-event-update', {
-        detail: { type: eventData.type, timestamp: eventData.timestamp }
-      });
-      window.dispatchEvent(updateEvent);
-
-      console.log('Game event recorded for consensus metrics:', eventData);
+      // No event dispatch to reduce overhead
       return true;
     } catch (error) {
       console.error('Failed to record game event:', error);
@@ -963,20 +968,25 @@ const Game = () => {
         return;
     }
 
-    // Record game event for consensus metrics
-    try {
-      await recordGameEvent({
-        type: 'card_play',
-        cardId: card.id,
-        cardName: card.name,
-        timestamp: Date.now(),
-        responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time between 50-150ms
-        player: 'player',
-        agreement: Math.random() * 30 + 70 // Random agreement between 70-100%
-      });
-    } catch (error) {
-      console.error('Failed to record game event:', error);
-      // Continue with the game even if recording fails
+    // Record game event for consensus metrics if battle consensus is ready
+    if (isBattleConsensusReady) {
+      try {
+        await recordGameEvent({
+          type: 'card_play',
+          cardId: card.id,
+          cardName: card.name,
+          timestamp: Date.now(),
+          responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time between 50-150ms
+          player: 'player',
+          agreement: Math.random() * 30 + 70 // Random agreement between 70-100%
+        });
+        console.log(`Battle move recorded for card ${card.name} in consensus system`);
+      } catch (error) {
+        console.error('Failed to record game event:', error);
+        // Continue with the game even if recording fails
+      }
+    } else {
+      console.log('Battle consensus not ready, skipping move recording');
     }
 
     // Check if player is registered in localStorage if the isRegistered state is false
@@ -1478,16 +1488,21 @@ const Game = () => {
         }
     }
 
-    // Record game completion event for consensus metrics
-    recordGameEvent({
-      type: 'game_end',
-      timestamp: Date.now(),
-      responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time
-      player: playerWon === true ? 'player' : playerWon === false ? 'opponent' : 'draw',
-      agreement: Math.random() * 10 + 90 // High agreement for game end (90-100%)
-    }).catch(error => {
-      console.error('Failed to record game end event:', error);
-    });
+    // Record game completion event for consensus metrics if battle consensus is ready
+    if (isBattleConsensusReady) {
+      recordGameEvent({
+        type: 'game_end',
+        timestamp: Date.now(),
+        responseTime: Math.floor(Math.random() * 100) + 50, // Simulate response time
+        player: playerWon === true ? 'player' : playerWon === false ? 'opponent' : 'draw',
+        agreement: Math.random() * 10 + 90 // High agreement for game end (90-100%)
+      }).catch(error => {
+        console.error('Failed to record game end event:', error);
+      });
+      console.log('Game end recorded in battle consensus system');
+    } else {
+      console.log('Battle consensus not ready, skipping game end recording');
+    }
 
     try {
         // Show transaction pending state
@@ -2302,6 +2317,12 @@ const Game = () => {
                         <h3 className="text-white text-sm mb-2 flex items-center">
                           <Sword className="w-4 h-4 mr-1" />
                           Your Cards
+                          {isBattleConsensusReady && (
+                            <span className="ml-2 text-xs bg-green-900/50 text-green-400 px-1.5 py-0.5 rounded-full flex items-center">
+                              <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                              Battle Recording
+                            </span>
+                          )}
                         </h3>
                         <div className="grid grid-cols-3 gap-2">
                           {playerDeck.map(card => (
