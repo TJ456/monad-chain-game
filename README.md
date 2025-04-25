@@ -5,7 +5,7 @@
 > **Unleash the power of MONAD's revolutionary blockchain technology in an immersive card battle experience with parallel execution, state synchronization, and RaptorCast NFT propagation.**
 
 <div align="center">
-  <img src="https://i.imgur.com/YourGameLogo.png" alt="MONAD Chain Game Logo" width="200"/>
+  <img src="https://i.imgur.com/jsOdHyN.png" alt="MONAD Chain Game Logo" width="200"/>
   <br/>
   <i>Harnessing MONAD's 10,000+ TPS for lightning-fast gameplay</i>
 </div>
@@ -25,6 +25,7 @@ Create an engaging blockchain game on Monad that provides a fun and innovative p
 **Mandatory tech:**
 
 Monad should be utilized in this project
+----------------------------------------------------------------------------
 
 - **⚡ Parallel Execution Engine**: Execute multiple game moves simultaneously, achieving 50-100x faster gameplay than traditional blockchain games
 - **🔄 StateSync Technology**: Synchronize game states with minimal bandwidth, perfect for rural areas with limited connectivity
