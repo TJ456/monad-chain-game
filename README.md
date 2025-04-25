@@ -203,56 +203,6 @@ Our implementation of MONAD technologies has achieved remarkable performance imp
 
 ---
 
-## 🎮 Gameplay Showcase
-
-### Card Battle System:
-Our battle system leverages MONAD's parallel execution to process multiple effects simultaneously:
-
-```typescript
-// Example of parallel execution in card battles
-async function executeParallelMoves(moves: MovesBatch): Promise<TransactionResult> {
-  // Group moves that can be executed in parallel
-  const parallelizableMoves = groupMovesForParallelExecution(moves);
-
-  // Submit to MONAD blockchain for parallel processing
-  const tx = await monadGameContract.executeParallelMoves(parallelizableMoves);
-
-  // Process chain reactions triggered by moves
-  const chainReactions = await processChainReactions(tx.events);
-
-  return {
-    txHash: tx.hash,
-    blockNumber: tx.blockNumber,
-    executionTimeMs: performance.now() - startTime,
-    chainReactionsTriggered: chainReactions.length
-  };
-}
-```
-
-### StateSync Implementation:
-```typescript
-// Efficient state synchronization with Merkle verification
-async function syncGameState(targetBlock: number): Promise<void> {
-  // Request state chunks from the network
-  const stateChunks = await stateSyncService.requestSync({
-    targetBlock,
-    includeAccounts: true,
-    includeStorage: true,
-    priority: StateSyncPriority.HIGH
-  });
-
-  // Verify chunks using Merkle proofs
-  const isValid = await verifyStateChunks(stateChunks, blockHeader.stateRoot);
-
-  if (isValid) {
-    // Apply state update with minimal bandwidth usage
-    await gameStateManager.updateState(reassembleChunks(stateChunks));
-  }
-}
-```
-
----
-
 ## 📽️ Demo & Deliverables
 
 - **Demo Video Link:** [(https://drive.google.com/file/d/1um-6nLqdmcBT8qZ3PcBYTHX4b5ReJogH/view?usp=sharing)]
@@ -322,15 +272,53 @@ VITE_ENABLE_PARALLEL_EXECUTION=true
 
 ---
 
-## 📎 Resources & Technical Documentation
+## 🎮 Gameplay Showcase
 
-- [MONAD Blockchain Documentation](https://docs.monad.xyz)
-- [StateSync Technical Specification](https://docs.monad.xyz/statesync)
-- [RaptorCast Protocol Overview](https://docs.monad.xyz/raptorcast)
-- [Parallel Execution in MONAD](https://docs.monad.xyz/parallel-execution)
-- [Merkle Tree Implementation](https://github.com/monad/merkle-tree)
-- [PBFT Consensus in MONAD](https://docs.monad.xyz/consensus)
+### Card Battle System:
+Our battle system leverages MONAD's parallel execution to process multiple effects simultaneously:
 
+```typescript
+// Example of parallel execution in card battles
+async function executeParallelMoves(moves: MovesBatch): Promise<TransactionResult> {
+  // Group moves that can be executed in parallel
+  const parallelizableMoves = groupMovesForParallelExecution(moves);
+
+  // Submit to MONAD blockchain for parallel processing
+  const tx = await monadGameContract.executeParallelMoves(parallelizableMoves);
+
+  // Process chain reactions triggered by moves
+  const chainReactions = await processChainReactions(tx.events);
+
+  return {
+    txHash: tx.hash,
+    blockNumber: tx.blockNumber,
+    executionTimeMs: performance.now() - startTime,
+    chainReactionsTriggered: chainReactions.length
+  };
+}
+```
+
+### StateSync Implementation:
+```typescript
+// Efficient state synchronization with Merkle verification
+async function syncGameState(targetBlock: number): Promise<void> {
+  // Request state chunks from the network
+  const stateChunks = await stateSyncService.requestSync({
+    targetBlock,
+    includeAccounts: true,
+    includeStorage: true,
+    priority: StateSyncPriority.HIGH
+  });
+
+  // Verify chunks using Merkle proofs
+  const isValid = await verifyStateChunks(stateChunks, blockHeader.stateRoot);
+
+  if (isValid) {
+    // Apply state update with minimal bandwidth usage
+    await gameStateManager.updateState(reassembleChunks(stateChunks));
+  }
+}
+```
 ---
 
 
@@ -343,3 +331,73 @@ Our vision extends beyond gaming – we're creating a platform that can bring ec
 We invite you to join us on this journey to transform both blockchain gaming and rural commerce through the power of MONAD technology.
 
 ---
+
+### Data Flow Architecture:
+```mermaid
+graph TD
+    %% Player initiates a game action
+    A[Player Game Action] --> A1[Action Validation]
+    A1 --> A2[Transaction Creation]
+    A2 --> B[MONAD Parallel Execution Engine]
+
+    %% Parallel execution of effects
+    B --> |32 Parallel Ops| C1[Chain Reaction Effect 1]
+    B --> |32 Parallel Ops| C2[Chain Reaction Effect 2]
+    B --> |32 Parallel Ops| C3[Chain Reaction Effect 3]
+
+    %% Effect details
+    C1 --> C1_1[Card Attribute Changes]
+    C1 --> C1_2[Damage Calculation]
+    C2 --> C2_1[Status Effect Application]
+    C2 --> C2_2[Mana Consumption]
+    C3 --> C3_1[Secondary Triggers]
+    C3 --> C3_2[Combo Multipliers]
+
+    %% State updates
+    C1_1 --> D[Game State Update]
+    C1_2 --> D
+    C2_1 --> D
+    C2_2 --> D
+    C3_1 --> D
+    C3_2 --> D
+
+    %% State processing
+    D --> D1[State Compression: 250KB → 12KB]
+    D1 --> D2[State Differential Calculation]
+    D2 --> E[Merkle Tree Generation]
+
+    %% Merkle tree details
+    E --> E1[Root Hash Calculation]
+    E1 --> E2[Proof Generation]
+    E2 --> F[StateSync Propagation]
+
+    %% StateSync details
+    F --> F1[Chunked State Transfer]
+    F1 --> F2[Bandwidth Optimization]
+    F2 --> F3[State Verification]
+    F3 --> G[RaptorCast Distribution]
+
+    %% RaptorCast details
+    G --> G1[Erasure Coding: 3x Redundancy]
+    G1 --> G2[P2P Propagation]
+    G2 --> G3[Network Resilience: 99.9% with 40% Node Failure]
+    G3 --> H[On-chain Verification]
+
+    %% Verification and finality
+    H --> H1[PBFT Consensus]
+    H1 --> H2[Sub-second Finality]
+    H2 --> H3[Cross-shard Synchronization]
+    H3 --> I[Transaction Complete]
+
+    %% Styling
+    classDef monadCore fill:#3a0ca3,stroke:#4cc9f0,color:#fff,stroke-width:2px;
+    classDef gameLogic fill:#4361ee,stroke:#4cc9f0,color:#fff;
+    classDef dataFlow fill:#7209b7,stroke:#4cc9f0,color:#fff;
+    classDef verification fill:#f72585,stroke:#4cc9f0,color:#fff;
+
+    class B,E1,F2,G1,H1 monadCore;
+    class A,C1,C2,C3,D monadCore;
+    class C1_1,C1_2,C2_1,C2_2,C3_1,C3_2 gameLogic;
+    class D1,D2,E2,F1,F3,G2 dataFlow;
+    class G3,H2,H3,I verification;
+```
