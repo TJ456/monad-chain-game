@@ -89,7 +89,9 @@ const Game = () => {
     stakedAmount?: number,
     powerBoost?: number,
     efficiency?: number,
-    affectedCards?: string[]
+    affectedCards?: string[],
+    healthBoost?: number,
+    manaBoost?: number
   } | null>(null);
   const [allPlayerCards, setAllPlayerCards] = useState<GameCardType[]>(currentPlayer.cards);
   const [isOpponentStunned, setIsOpponentStunned] = useState(false);
@@ -518,19 +520,37 @@ const Game = () => {
       // Simulate blockchain transaction
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Apply boost to all cards
+      // Apply boost to all cards with enhanced effects
       setPlayerDeck(prevCards =>
-        prevCards.map(card => ({
-          ...card,
-          originalAttack: card.attack,
-          originalDefense: card.defense,
-          originalSpecial: card.special,
-          attack: card.attack ? Math.floor(card.attack * (1 + boostEffect / 100)) : undefined,
-          defense: card.defense ? Math.floor(card.defense * (1 + boostEffect / 100)) : undefined,
-          special: card.special ? Math.floor(card.special * (1 + boostEffect / 100)) : undefined,
-          boosted: true,
-        }))
+        prevCards.map(card => {
+          // Calculate boosted values with more significant increases
+          const attackBoost = card.attack ? Math.max(1, Math.floor(card.attack * (boostEffect / 100))) : 0;
+          const defenseBoost = card.defense ? Math.max(1, Math.floor(card.defense * (boostEffect / 100))) : 0;
+          const specialBoost = card.special ? Math.max(1, Math.floor(card.special * (boostEffect / 100))) : 0;
+
+          return {
+            ...card,
+            originalAttack: card.attack,
+            originalDefense: card.defense,
+            originalSpecial: card.special,
+            attack: card.attack ? card.attack + attackBoost : undefined,
+            defense: card.defense ? card.defense + defenseBoost : undefined,
+            special: card.special ? card.special + specialBoost : undefined,
+            attackBoost: attackBoost > 0 ? attackBoost : undefined,
+            defenseBoost: defenseBoost > 0 ? defenseBoost : undefined,
+            specialBoost: specialBoost > 0 ? specialBoost : undefined,
+            boosted: true,
+          };
+        })
       );
+
+      // Give player a small health boost as well
+      const healthBoost = Math.floor(5 + (amount / 10));
+      setPlayerHealth(prev => Math.min(30, prev + healthBoost));
+
+      // Give player an immediate mana boost
+      const manaBoost = Math.min(3, Math.floor(amount / 20));
+      setPlayerMana(prev => Math.min(10, prev + manaBoost));
 
       setBoostActive(true);
       setBoostDetails({
@@ -538,14 +558,23 @@ const Game = () => {
         remainingTurns: duration,
         stakedAmount: amount,
         powerBoost: boostEffect,
+        healthBoost: healthBoost,
+        manaBoost: manaBoost,
         efficiency: Math.min(200, 100 + (amount * 2)),
         affectedCards: playerDeck.map(card => card.id)
       });
 
       setPlayerMonadBalance(prev => prev - amount);
 
-      // Add visual effects
-      setBattleLog(prev => [...prev, `🔥 MONAD Boost activated! +${boostEffect}% power for ${duration} turns`]);
+      // Add visual effects with detailed benefits
+      setBattleLog(prev => [
+        ...prev,
+        `🔥 MONAD Boost activated! +${boostEffect}% power for ${duration} turns`,
+        `💪 All cards boosted: Attack +${boostEffect}%, Defense +${boostEffect}%, Special +${boostEffect}%`,
+        `❤️ Health restored: +${healthBoost} HP`,
+        `✨ Mana bonus: +${manaBoost} mana crystals`,
+        `🛡️ Damage reduction: ${Math.floor(boostEffect * 0.1)}% from opponent attacks`
+      ]);
 
       // Update transaction status
       const newTransaction: Transaction = {
@@ -560,7 +589,7 @@ const Game = () => {
       setIsTransactionPending(false);
       setCurrentTransaction(null);
 
-      // Show success toast with animated sparkles
+      // Show success toast with animated sparkles and detailed benefits
       toast.success(
         <div className="flex items-center">
           <span className="mr-2">MONAD Boost Activated!</span>
@@ -568,7 +597,14 @@ const Game = () => {
         </div>,
         {
           id: txHash,
-          description: `All cards powered up by ${boostEffect}% for ${duration} turns`,
+          description:
+            <div className="flex flex-col space-y-1 text-sm">
+              <div>All cards powered up by {boostEffect}% for {duration} turns</div>
+              <div className="text-green-400">+{healthBoost} Health restored</div>
+              <div className="text-blue-400">+{manaBoost} Mana crystals gained</div>
+              <div className="text-amber-400">{Math.floor(boostEffect * 0.1)}% Damage reduction</div>
+            </div>,
+          duration: 5000
         }
       );
 
@@ -677,9 +713,23 @@ const Game = () => {
 
               // Apply card effects
               if (cardToPlay.attack) {
-                const damage = cardToPlay.attack;
+                let damage = cardToPlay.attack;
+
+                // Apply damage reduction if player has active boost
+                if (boostActive && boostDetails) {
+                  // Calculate damage reduction based on boost effect (10-25% reduction)
+                  const damageReduction = Math.floor(damage * (boostDetails.effect * 0.1) / 100);
+                  if (damageReduction > 0) {
+                    damage = Math.max(1, damage - damageReduction);
+                    logEntry += ` Dealt ${damage} damage (reduced by ${damageReduction} from MONAD shield).`;
+                  } else {
+                    logEntry += ` Dealt ${damage} damage.`;
+                  }
+                } else {
+                  logEntry += ` Dealt ${damage} damage.`;
+                }
+
                 newPlayerHealth = Math.max(0, playerHealth - damage);
-                logEntry += ` Dealt ${damage} damage.`;
               }
 
               if (cardToPlay.defense) {
@@ -758,9 +808,24 @@ const Game = () => {
             boosted: false,
           }))
         );
+        // Store boost details before clearing them
+        const expiredBoostEffect = boostDetails.effect;
+
         setBoostActive(false);
         setBoostDetails(null);
-        setBattleLog(prev => [...prev, "MONAD Boost expired - cards returned to normal"]);
+
+        // Add detailed expiration message
+        setBattleLog(prev => [
+          ...prev,
+          "⚠️ MONAD Boost expired - cards returned to normal",
+          `📉 Lost bonuses: ${expiredBoostEffect}% power, damage reduction, and other effects`
+        ]);
+
+        // Show toast notification about expiration
+        toast.info("MONAD Boost Expired", {
+          description: "Your cards have returned to their normal power levels",
+          duration: 3000
+        });
       } else {
         setBoostDetails(prev => ({
           ...prev!,
