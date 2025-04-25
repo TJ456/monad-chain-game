@@ -256,14 +256,14 @@ async function syncGameState(targetBlock: number): Promise<void> {
 ## 📽️ Demo & Deliverables
 
 - **Demo Video Link:** [(https://drive.google.com/file/d/1um-6nLqdmcBT8qZ3PcBYTHX4b5ReJogH/view?usp=sharing)]
-- **Pitch Deck / PPT Link:** [Coming Soon]
-- **Live Demo:** [Coming Soon]
+- **PPT Link:** [(https://drive.google.com/file/d/1ObJUHBHVcQYOTFU9fnu9-j9IRYYJd9CG/view?usp=sharing)]
+- **Documentation Link :** [(https://drive.google.com/file/d/1jGjTadCFLO9Xt7MSQFnvlIYyaVvKWtxb/view?usp=drive_link)]
 
 ---
 
 ## ✅ Tasks & Bonus Checklist
 
-- ✅ **All members of the team completed the mandatory task - Followed at least 2 of our social channels and filled the form**
+- ✅ **All members of the team completed the mandatory task - Followed at least 2 of social channels and filled the form**
 - ✅ **All members of the team completed Bonus Task 1 - Sharing of Badges and filled the form (2 points)**
 - ✅ **All members of the team completed Bonus Task 2 - Signing up for Sprint.dev and filled the form (3 points)**
 
@@ -273,7 +273,7 @@ async function syncGameState(targetBlock: number): Promise<void> {
 
 ### Requirements:
 - Node.js (v18.x)
-- npm or yarn
+- npm or yarn.
 - MetaMask or another Ethereum-compatible wallet
 
 ### Local Setup:
