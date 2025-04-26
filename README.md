@@ -243,8 +243,8 @@ These metrics were measured across 10,000 test battles conducted on the MONAD te
 
 ## 📽️ Demo & Deliverables
 
-- **Demo Video Link:** [(https://drive.google.com/file/d/1um-6nLqdmcBT8qZ3PcBYTHX4b5ReJogH/view?usp=sharing)]
-- **PPT Link:** [(https://drive.google.com/file/d/1hVvmeebHYdyQ9NX6pESxph7QDLdGK3zO/view?usp=sharing)]
+- **Demo Video Link:** [(https://www.youtube.com/watch?v=uBby7G7yPxg)]
+- **PPT Link:** [(https://drive.google.com/file/d/1hVvmeebHYdyQ9NX6pESxph7QDLdGK3zO/view)]
 - **Documentation Link :** [(https://drive.google.com/file/d/1jGjTadCFLO9Xt7MSQFnvlIYyaVvKWtxb/view?usp=drive_link)]
 
 ---
