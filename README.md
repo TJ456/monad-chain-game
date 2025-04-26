@@ -82,10 +82,13 @@ By combining these technologies, we've created a game that not only demonstrates
   - Hardhat for smart contract development and testing
   - OpenZeppelin contracts for secure ERC-721 implementation
 
+### Partner Technology: MONAD
+
 ### MONAD-Specific Technologies:
 - **Smart Contracts**: Custom ERC-721 implementation with extended metadata for game mechanics and composable NFTs
 - **Parallel Transaction Processing**: Batch operations for card evolution, tournament management, and marketplace activities, enabling up to 32 parallel operations per transaction
 - **PBFT Consensus**: Fast finality (< 0.5 seconds) for tournament outcomes and battle results with Byzantine fault tolerance
+- **Consensus Health Check**: Real-time monitoring of consensus metrics, validator response times, and network latency for optimal performance
 - **Cross-Shard Communication**: Enable cards from different shards to battle and trade with minimal latency
 - **StateSync**: Custom implementation for efficient state synchronization with 95% bandwidth reduction using Merkle tree-based state differentials
 - **RaptorCast**: Protocol for reliable NFT data propagation across the network with erasure coding and 3x redundancy factor
@@ -97,6 +100,9 @@ By combining these technologies, we've created a game that not only demonstrates
 - **Erasure Coding**: Data redundancy technique used in RaptorCast to ensure 99.9% reliability even with 40% node failures
 - **Chain Reaction System**: Custom implementation leveraging MONAD's parallel execution for cascading card effects
 - **Composable NFTs**: On-chain evolution and combination of NFTs with verifiable lineage through Merkle proofs
+- **MonadDb**: Custom database service optimized for blockchain data with caching, compression, and sharding capabilities
+- **Validator System**: Network of validators ensuring transaction integrity and consensus across the MONAD network
+- **Alchemy Integration**: Seamless connection to MONAD testnet through Alchemy's enterprise-grade infrastructure
 
 ### Data Flow Architecture:
 ```mermaid
@@ -178,7 +184,7 @@ graph TD
 - 🔄 **State Channels**: Off-chain gameplay with on-chain settlement for instant moves even in low-connectivity environments
 - 🌐 **Cross-Shard Gameplay**: Battle and trade with players across different shards of the MONAD network
 - 💎 **Composable Assets**: Combine card attributes and effects to create unique, one-of-a-kind NFTs
-- 🚀 **Boost Mechanics**: Temporarily enhance your cards using MONAD's state synchronization for strategic advantages
+- 🚀 **Boost Mechanics**: Purely cosmetic enhancements for your cards using MONAD's state synchronization, adding visual flair without affecting gameplay balance
 - 🔍 **Verifiable Randomness**: Fair card generation and battle outcomes using MONAD's consensus mechanism
 
 ### Card Rarity System:
@@ -206,7 +212,7 @@ Our implementation of MONAD technologies has achieved remarkable performance imp
 ## 📽️ Demo & Deliverables
 
 - **Demo Video Link:** [(https://drive.google.com/file/d/1um-6nLqdmcBT8qZ3PcBYTHX4b5ReJogH/view?usp=sharing)]
-- **PPT Link:** [(https://drive.google.com/file/d/1ObJUHBHVcQYOTFU9fnu9-j9IRYYJd9CG/view?usp=sharing)]
+- **PPT Link:** [(https://drive.google.com/file/d/1hVvmeebHYdyQ9NX6pESxph7QDLdGK3zO/view?usp=sharing)]
 - **Documentation Link :** [(https://drive.google.com/file/d/1jGjTadCFLO9Xt7MSQFnvlIYyaVvKWtxb/view?usp=drive_link)]
 
 ---
